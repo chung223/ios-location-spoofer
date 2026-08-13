@@ -39,6 +39,12 @@ const CERT = process.env.CERT || "";                   // https 证书 fullchain
 const KEY = process.env.KEY || "";                     // https 私钥路径
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, "loc.json");
 
+// 180×180 定位图钉图标，供 PWA「添加到主屏幕」使用；不含敏感信息，无需 token。
+const ICON_180 = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAAE8klEQVR42u2dMU4jQRREOQJH4Ag+AkfYI3AEYiJESuDAIYGTDZFISBGRQ+SIFGcO7dBhr0YrEbBosWd+z3TVf18VoQV6PY/p39U1PWdnNwWh78VHgIADAQcCDgQcCDgQcCDgQMCBgAMBB0LAgYADAQcCDgQcCDgQcCDgQMCBgAMh4EDAgYADAQcCDgQcCDgQcCDgQMCBEHAg4EDAcaQuH8r1c5mvyutHp3/r79fnq+6fXT4Ah7tmi+5ir7elX6233bfPFsBhpIv77qJudiWqNrvuB17cA4f43PH0XurV07v7jOM6g3zbSdSo1w/fucbs/3N+V5ZvZfxavnW/Gjja1a/fZX8oU9X+0A0AOLhh5LiFeKxHei9Qa9R667KWMeg9J5xK/jPFOHSpkAEfhnC0TIYJH5ABH1ZwXNxrkPHJh2p/qrhqbWptcuT6RXJ9KzfiRvyMHv4HcFT3QHVLzz/VmlCEWo1vmw+xyYUJhclFHo7ZoniU0spWZaCj5TNGyH8AR3Cmy6lk8mMSo6yU9tsfuibg6vHr1bp86L64fKvV/z69A0ecHxpem113+Y/57VePkeHkz9LwTNsf4nwVfLe4fj55DNfPwXeR+Qo4IhT4h7ve9l8szBaRtv1mBxwtrWCHb3DEbusIrGmTzClRW1+BfAjMLI2PL+RKxIYqoqIk6y1wDFNI9ehAf+xPQwo4Jva+KrV+IW1y625Yy4ML+QM90s84VVePLd7SEsExvBvdHyoOb3jn0XpP6r3ZVnWLfHiEoPVNOG84Ks0pUTMLcEy5VKna8YX0y8AxGRyMEDiAAziAAziAAzhoSIGDpSxLWUww4MA+xz5n442NN7bs2bIn7EPYh5ggMUECxgSMgYNHE4CDh5qAg8cheRySB6l5kJojGAYURzA054a1Uxze0twmXCPFsU9Nr2mnLQ6Ma3SLfPLiqMla4pBa4HBuO5QaDi04DNoOsXevKI1VvO3Qe3GC1nC1XsPzpeHQeyWP2HBvyu2LJBy3L0Xuo5Z8U5PczUNvnSIKR2BKb7RqPUjsBEdsyKN2aUQ3nOAQep+X3tu71OFQ8cTEXC8bOCT28WV2583gqBcCShfqsYSjRoIwXRbQFY7w+HG6CLE3HG16YqqulxkcbRrqkma5JRznd215YpudxW3DA46o0zKiqupZU8Ax2fP4w0vg2fmEcDTiiWm7Xq5wtGCoa5vl3nBMHjIVi4imgmPakKleRDQbHFOFTCUjotngmMoTM3G97OEY31A3McszwDF+yFQ1IpoTjjFDpsIR0bRwjBYyFY6IpoVjHE/MzfXKA8cIhrqVWZ4KjtohU/mIaHI4qoZMDV2vVHDUC5k6RESBo4YnZut6ZYOjhqHuaZbnhCM2ZOoTEQWO8JCpT0QUOGJDplYRUeCI9cTMXa+0cAw31M3N8uRwDAyZukVEgSMqZGoYEQWOkJCpZ0QUOEI8sSyuF3CcaqhnMcuBo0fI1DYiChwDQ6bOEVHgGBgydY6IAscQTyyd6wUcxxvqucxy4Dg+ZOofEQWO3iHTjK4XcBwTMk0REQWOHp5YXtcLOH401JOa5cDxY8g0UUQUOE4NmSaKiALHSSHTXBFR4DjJE8vuegEHAg4EHAg4EHAg4EDAgYADAQcCDoSAAwEHAg4EHAg4EHAg4EDAgYADAQcCDj4CBBwIOBBwIOBAwIGAA0npD0TNwcqzzRXCAAAAAElFTkSuQmCC",
+  "base64",
+);
+
 // 常量时间比较，避免通过响应时延逐字节爆破 token
 function safeEqual(a, b) {
   const ab = Buffer.from(String(a));
@@ -166,6 +172,21 @@ function handler(req, res) {
     return;
   }
 
+  // ---- PWA 图标：无需 token（不含敏感信息），供「添加到主屏幕」和浏览器标签使用 ----
+  if (
+    (url.pathname === "/icon-180.png" ||
+      url.pathname === "/apple-touch-icon.png" ||
+      url.pathname === "/apple-touch-icon-precomposed.png") &&
+    req.method === "GET"
+  ) {
+    res.writeHead(200, {
+      "Content-Type": "image/png",
+      "Access-Control-Allow-Origin": "*",
+      "Cache-Control": "public, max-age=604800, immutable",
+    });
+    return res.end(ICON_180);
+  }
+
   // ---- 地图网页（与 Worker 版一致，必须带正确 token） ----
   if (url.pathname === "/" && req.method === "GET") {
     if (!checkToken(token, res)) return;
@@ -224,6 +245,13 @@ const PAGE = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>定位选点</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="定位选点">
+<meta name="theme-color" content="#007aff">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" type="image/png" href="/icon-180.png">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
@@ -250,6 +278,8 @@ const PAGE = `<!doctype html>
     background:rgba(0,0,0,.85);color:#fff;padding:10px 16px;border-radius:8px;
     font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999}
   .toast.show{opacity:1}
+  .pwahint{margin:10px 8px 16px;padding:9px 11px;font-size:12px;color:#555;background:#f2f2f7;border-radius:8px;line-height:1.6}
+  @media (display-mode: standalone){.pwahint{display:none}}
 </style>
 </head>
 <body>
@@ -271,6 +301,7 @@ const PAGE = `<!doctype html>
   <button id="favlistbtn">我的收藏</button>
 </div>
 <div class="results" id="favs"></div>
+<div class="pwahint">💡 想像 App 一样用？在 Safari 点底部「分享」→「添加到主屏幕」，即可全屏独立打开。想“一键切换定位”，见仓库「快捷指令一键改定位」教程，配合 iOS 快捷指令 + 背面轻点即可。</div>
 <div class="toast" id="toast"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>

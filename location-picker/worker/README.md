@@ -77,6 +77,11 @@ https://ios-location-picker.你的账号.workers.dev/?token=你的TOKEN
 
 在 Cloudflare Dashboard → Workers → 你的 Worker → Settings → Domains 绑定子域即可，例如 `loc.example.com`。
 
+## 当 App 用 & 一键改定位
+
+- 用 iPhone 浏览器打开 `https://.../?token=你的TOKEN`，Safari 分享 →「添加到主屏幕」，即可全屏独立打开（已内置 PWA 图标 `/icon-180.png` 与 apple 元信息，无需额外配置）。
+- 想做到「主屏幕点一下 / 轻点手机背面」就切定位，见 [`../快捷指令一键改定位.md`](../快捷指令一键改定位.md)（iOS 快捷指令直接打 `POST /set`，再切 Wi-Fi/飞行模式触发生效）。
+
 ## 与 Node 版差异
 
 - 数据存在 **KV**（非本地文件），个人用量免费额度足够

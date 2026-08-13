@@ -1,6 +1,6 @@
-// 与 location-picker/server.js 的 PAGE 保持一致（地图选点 UI）
-// ⚠️ 本文件由 worker/src/page.js + worker/src/index.js 合并生成，请勿手改；
-//    要改逻辑请改 worker/src/ 再重新合并，避免多份副本漂移。
+// ⚠️ 自动生成，请勿手改：由 worker/src/page.js + worker/src/index.js 合并（npm run build:webui）。
+//    要改逻辑请改 worker/src/ 再重新生成，避免多份副本漂移。
+//    用途：Cloudflare 网页后台「复制粘贴单文件」部署（无需 npm / Wrangler / GitHub）。
 
 export const PAGE = `<!doctype html>
 <html lang="zh">
@@ -8,7 +8,14 @@ export const PAGE = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>定位选点</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="定位选点">
+<meta name="theme-color" content="#007aff">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" type="image/png" href="/icon-180.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
 <style>
   html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
   .bar{padding:8px;display:flex;gap:6px;box-sizing:border-box}
@@ -34,6 +41,8 @@ export const PAGE = `<!doctype html>
     background:rgba(0,0,0,.85);color:#fff;padding:10px 16px;border-radius:8px;
     font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999}
   .toast.show{opacity:1}
+  .pwahint{margin:10px 8px 16px;padding:9px 11px;font-size:12px;color:#555;background:#f2f2f7;border-radius:8px;line-height:1.6}
+  @media (display-mode: standalone){.pwahint{display:none}}
 </style>
 </head>
 <body>
@@ -55,8 +64,9 @@ export const PAGE = `<!doctype html>
   <button id="favlistbtn">我的收藏</button>
 </div>
 <div class="results" id="favs"></div>
+<div class="pwahint">💡 想像 App 一样用？在 Safari 点底部「分享」→「添加到主屏幕」，即可全屏独立打开。想“一键切换定位”，见仓库「快捷指令一键改定位」教程，配合 iOS 快捷指令 + 背面轻点即可。</div>
 <div class="toast" id="toast"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script>
 var token = new URLSearchParams(location.search).get("token") || "";
 
@@ -390,6 +400,11 @@ load();
 
 const KV_KEY = "loc";
 
+// 180×180 定位图钉图标，供 PWA「添加到主屏幕」使用；不含敏感信息，无需 token。
+const ICON_180_B64 =
+  "iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAAE8klEQVR42u2dMU4jQRREOQJH4Ag+AkfYI3AEYiJESuDAIYGTDZFISBGRQ+SIFGcO7dBhr0YrEbBosWd+z3TVf18VoQV6PY/p39U1PWdnNwWh78VHgIADAQcCDgQcCDgQcCDgQMCBgAMBB0LAgYADAQcCDgQcCDgQcCDgQMCBgAMh4EDAgYADAQcCDgQcCDgQcCDgQMCBEHAg4EDAcaQuH8r1c5mvyutHp3/r79fnq+6fXT4Ah7tmi+5ir7elX6233bfPFsBhpIv77qJudiWqNrvuB17cA4f43PH0XurV07v7jOM6g3zbSdSo1w/fucbs/3N+V5ZvZfxavnW/Gjja1a/fZX8oU9X+0A0AOLhh5LiFeKxHei9Qa9R667KWMeg9J5xK/jPFOHSpkAEfhnC0TIYJH5ABH1ZwXNxrkPHJh2p/qrhqbWptcuT6RXJ9KzfiRvyMHv4HcFT3QHVLzz/VmlCEWo1vmw+xyYUJhclFHo7ZoniU0spWZaCj5TNGyH8AR3Cmy6lk8mMSo6yU9tsfuibg6vHr1bp86L64fKvV/z69A0ecHxpem113+Y/57VePkeHkz9LwTNsf4nwVfLe4fj55DNfPwXeR+Qo4IhT4h7ve9l8szBaRtv1mBxwtrWCHb3DEbusIrGmTzClRW1+BfAjMLI2PL+RKxIYqoqIk6y1wDFNI9ehAf+xPQwo4Jva+KrV+IW1y625Yy4ML+QM90s84VVePLd7SEsExvBvdHyoOb3jn0XpP6r3ZVnWLfHiEoPVNOG84Ks0pUTMLcEy5VKna8YX0y8AxGRyMEDiAAziAAziAAzhoSIGDpSxLWUww4MA+xz5n442NN7bs2bIn7EPYh5ggMUECxgSMgYNHE4CDh5qAg8cheRySB6l5kJojGAYURzA054a1Uxze0twmXCPFsU9Nr2mnLQ6Ma3SLfPLiqMla4pBa4HBuO5QaDi04DNoOsXevKI1VvO3Qe3GC1nC1XsPzpeHQeyWP2HBvyu2LJBy3L0Xuo5Z8U5PczUNvnSIKR2BKb7RqPUjsBEdsyKN2aUQ3nOAQep+X3tu71OFQ8cTEXC8bOCT28WV2583gqBcCShfqsYSjRoIwXRbQFY7w+HG6CLE3HG16YqqulxkcbRrqkma5JRznd215YpudxW3DA46o0zKiqupZU8Ax2fP4w0vg2fmEcDTiiWm7Xq5wtGCoa5vl3nBMHjIVi4imgmPakKleRDQbHFOFTCUjotngmMoTM3G97OEY31A3McszwDF+yFQ1IpoTjjFDpsIR0bRwjBYyFY6IpoVjHE/MzfXKA8cIhrqVWZ4KjtohU/mIaHI4qoZMDV2vVHDUC5k6RESBo4YnZut6ZYOjhqHuaZbnhCM2ZOoTEQWO8JCpT0QUOGJDplYRUeCI9cTMXa+0cAw31M3N8uRwDAyZukVEgSMqZGoYEQWOkJCpZ0QUOEI8sSyuF3CcaqhnMcuBo0fI1DYiChwDQ6bOEVHgGBgydY6IAscQTyyd6wUcxxvqucxy4Dg+ZOofEQWO3iHTjK4XcBwTMk0REQWOHp5YXtcLOH401JOa5cDxY8g0UUQUOE4NmSaKiALHSSHTXBFR4DjJE8vuegEHAg4EHAg4EHAg4EDAgYADAQcCDoSAAwEHAg4EHAg4EHAg4EDAgYADAQcCDj4CBBwIOBBwIOBAwIGAA0npD0TNwcqzzRXCAAAAAElFTkSuQmCC";
+const ICON_180 = Uint8Array.from(atob(ICON_180_B64), (c) => c.charCodeAt(0));
+
 const DEFAULT = {
   enabled: true,          // false = 脚本放行原始响应（恢复真实定位）
   latitude: 37.3349,
@@ -403,7 +418,24 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
+  // 选点页 URL 带 ?token=，务必阻止它经 Referer 泄漏给 unpkg / 高德 / OSM / open-meteo / nominatim
+  "Referrer-Policy": "no-referrer",
+  "X-Content-Type-Options": "nosniff",
 };
+
+// 选点页专属 CSP：页面 URL 带 token，锁死脚本来源与可连接域名做纵深防御，
+// 万一 CDN 被投毒也无法把 token 外传。script/style 需 'unsafe-inline'（页面自身内联），
+// 外部脚本只放行 unpkg（已配 SRI）；connect 只放行地图/地理编码接口。
+const PAGE_CSP = [
+  "default-src 'none'",
+  "script-src https://unpkg.com 'unsafe-inline'",
+  "style-src https://unpkg.com 'unsafe-inline'",
+  "img-src 'self' https: data:", // 地图瓦片（高德 wprd0*/webst0*、OSM 多子域）
+  "connect-src 'self' https://api.open-meteo.com https://nominatim.openstreetmap.org",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join("; ");
 
 function jsonResponse(body, status = 200) {
   return new Response(typeof body === "string" ? body : JSON.stringify(body), {
@@ -558,11 +590,39 @@ export default {
       if (!auth.ok) {
         return unauthorized();
       }
-      return textResponse(PAGE, "text/html; charset=utf-8");
+      return new Response(PAGE, {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store",
+          "Content-Security-Policy": PAGE_CSP,
+          ...CORS,
+        },
+      });
     }
 
     if (url.pathname === "/health") {
       return jsonResponse({ ok: true, kv: !!env.LOC_KV, tokenConfigured: !!env.TOKEN });
+    }
+
+    // PWA 图标：无需 token（不含敏感信息），供「添加到主屏幕」和浏览器标签使用
+    if (
+      url.pathname === "/icon-180.png" ||
+      url.pathname === "/apple-touch-icon.png" ||
+      url.pathname === "/apple-touch-icon-precomposed.png"
+    ) {
+      return new Response(ICON_180, {
+        status: 200,
+        headers: {
+          "Content-Type": "image/png",
+          "Cache-Control": "public, max-age=604800, immutable",
+          ...CORS,
+        },
+      });
+    }
+
+    // 浏览器会自动请求 favicon；这里静默返 204，避免落到 404 分支产生噪音日志
+    if (url.pathname === "/favicon.ico") {
+      return new Response(null, { status: 204, headers: CORS });
     }
 
     return textResponse("not found", "text/plain", 404);

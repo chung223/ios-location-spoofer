@@ -5,6 +5,13 @@ export const PAGE = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>定位选点</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="定位选点">
+<meta name="theme-color" content="#007aff">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" type="image/png" href="/icon-180.png">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
 <style>
   html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
@@ -31,6 +38,8 @@ export const PAGE = `<!doctype html>
     background:rgba(0,0,0,.85);color:#fff;padding:10px 16px;border-radius:8px;
     font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999}
   .toast.show{opacity:1}
+  .pwahint{margin:10px 8px 16px;padding:9px 11px;font-size:12px;color:#555;background:#f2f2f7;border-radius:8px;line-height:1.6}
+  @media (display-mode: standalone){.pwahint{display:none}}
 </style>
 </head>
 <body>
@@ -52,6 +61,7 @@ export const PAGE = `<!doctype html>
   <button id="favlistbtn">我的收藏</button>
 </div>
 <div class="results" id="favs"></div>
+<div class="pwahint">💡 想像 App 一样用？在 Safari 点底部「分享」→「添加到主屏幕」，即可全屏独立打开。想“一键切换定位”，见仓库「快捷指令一键改定位」教程，配合 iOS 快捷指令 + 背面轻点即可。</div>
 <div class="toast" id="toast"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script>
