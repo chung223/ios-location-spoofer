@@ -23,9 +23,9 @@ const ICON_512 = Uint8Array.from(atob(ICON_512_B64), (c) => c.charCodeAt(0));
 
 const DEFAULT = {
   enabled: true,          // false = 脚本放行原始响应（恢复真实定位）
-  latitude: 37.3349,
-  longitude: -122.00902,
-  altitude: 530,
+  latitude: 25.0330,
+  longitude: 121.5654,
+  altitude: 10,
   horizontalAccuracy: 39,
   verticalAccuracy: 1000,
 };
@@ -255,8 +255,8 @@ export default {
       }
       const t = url.searchParams.get("token") || "";
       const manifest = {
-        name: "定位选点",
-        short_name: "定位选点",
+        name: "定位選點",
+        short_name: "定位選點",
         start_url: "/?token=" + encodeURIComponent(t),
         scope: "/",
         display: "standalone",

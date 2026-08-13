@@ -64,9 +64,9 @@ function safeEqual(a, b) {
 // 字段名/默认值与 location-spoofer.js 的 DEFAULT_CONFIG 对齐
 const DEFAULT = {
   enabled: true,          // false = 脚本放行原始响应（恢复真实定位）
-  latitude: 37.3349,
-  longitude: -122.00902,
-  altitude: 530,
+  latitude: 25.0330,
+  longitude: 121.5654,
+  altitude: 10,
   horizontalAccuracy: 39,
   verticalAccuracy: 1000
 };
@@ -206,8 +206,8 @@ function handler(req, res) {
   if (url.pathname === "/manifest.webmanifest" && req.method === "GET") {
     if (!checkToken(token, res)) return;
     const manifest = {
-      name: "定位选点",
-      short_name: "定位选点",
+      name: "定位選點",
+      short_name: "定位選點",
       start_url: "/?token=" + encodeURIComponent(token || ""),
       scope: "/",
       display: "standalone",
@@ -275,15 +275,15 @@ start();
 
 // === PAGE:BEGIN 由 worker/src/page.js 生成，勿手改（改 UI 请改 page.js 再 npm run build:webui）===
 const PAGE = `<!doctype html>
-<html lang="zh">
+<html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>定位选点</title>
+<title>定位選點</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="定位选点">
+<meta name="apple-mobile-web-app-title" content="定位選點">
 <meta name="theme-color" content="#007aff">
 <link rel="apple-touch-icon" href="/icon-180.png">
 <link rel="icon" type="image/png" href="/icon-180.png">
@@ -340,26 +340,26 @@ const PAGE = `<!doctype html>
 <body>
 <script>try{var _t=localStorage.getItem("lp_theme");if(_t)document.documentElement.setAttribute("data-theme",_t);}catch(e){}</script>
 <div class="bar">
-  <input id="q" placeholder="搜地名，回车列出候选（只预览，不改定位）">
-  <button id="locatebtn" disabled>当前位置</button>
-  <button id="btn">搜</button>
+  <input id="q" placeholder="搜地名，按 Enter 列出候選（只預覽，不改定位）">
+  <button id="locatebtn" disabled>目前位置</button>
+  <button id="btn">搜尋</button>
 </div>
 <div class="results" id="results"></div>
 <div id="map"></div>
-<div id="info">加载中…</div>
+<div id="info">載入中…</div>
 <div class="opts">
-  <label>海拔(米)<input id="alt" type="number" inputmode="numeric"></label>
+  <label>海拔(公尺)<input id="alt" type="number" inputmode="numeric"></label>
   <label>水平精度<input id="hacc" type="number" inputmode="numeric"></label>
   <label>垂直精度<input id="vacc" type="number" inputmode="numeric"></label>
-  <button id="savebtn">保存定位</button>
-  <button id="restorebtn">恢复真实定位</button>
-  <button id="favadd">收藏此点</button>
+  <button id="savebtn">儲存定位</button>
+  <button id="restorebtn">恢復真實定位</button>
+  <button id="favadd">收藏此點</button>
   <button id="favlistbtn">我的收藏</button>
   <button id="themebtn">🌙 深色</button>
 </div>
 <div class="results" id="favs"></div>
-<div class="pwahint">💡 想像 App 一样用？在 Safari 点底部「分享」→「添加到主屏幕」，即可全屏独立打开。想“一键切换定位”，见仓库「快捷指令一键改定位」教程，配合 iOS 快捷指令 + 背面轻点即可。</div>
-<div class="foot">本工具基于 <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener noreferrer">AGPL-3.0</a> 开源 · <a href="https://github.com/chung223/ios-location-spoofer" target="_blank" rel="noopener noreferrer">源码</a></div>
+<div class="pwahint">💡 想像 App 一樣用？在 Safari 點底部「分享」→「加入主畫面」，即可全螢幕獨立開啟。想「一鍵切換定位」，見倉庫「快捷指令一鍵改定位」教學，搭配 iOS 捷徑 + 背面輕點即可。</div>
+<div class="foot">本工具基於 <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener noreferrer">AGPL-3.0</a> 開源 · <a href="https://github.com/chung223/ios-location-spoofer" target="_blank" rel="noopener noreferrer">原始碼</a></div>
 <div class="toast" id="toast"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script>
@@ -378,7 +378,7 @@ function applyTheme(t){
   if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);
   else document.documentElement.removeAttribute("data-theme");
 }
-function updateThemeBtn(){var b=document.getElementById("themebtn");if(b)b.textContent=currentTheme()==="dark"?"☀️ 浅色":"🌙 深色";}
+function updateThemeBtn(){var b=document.getElementById("themebtn");if(b)b.textContent=currentTheme()==="dark"?"☀️ 淺色":"🌙 深色";}
 function toggleTheme(){var n=currentTheme()==="dark"?"light":"dark";applyTheme(n);try{localStorage.setItem("lp_theme",n);}catch(e){}updateThemeBtn();}
 
 var GCJ = (function(){
@@ -415,7 +415,7 @@ var GCJ = (function(){
 
 var map, marker;
 var WGS = {lat:0, lng:0};
-var datum = "gcj";
+var datum = "wgs";
 var saved = true;
 var enabledState = true;  // true=伪造中；false=已恢复真实定位（脚本放行）
 
@@ -428,14 +428,14 @@ function wrapLng(lng){return ((((Number(lng)+180)%360)+360)%360)-180;}
 function setLocateBusy(busy){
   var b=$("locatebtn");
   b.disabled=!!busy;
-  b.textContent=busy?"定位中…":"当前位置";
+  b.textContent=busy?"定位中…":"目前位置";
 }
 
 function geolocationErrorMessage(err){
-  if(err&&err.code===1)return "定位权限被拒绝，请在 Safari 设置中允许定位";
-  if(err&&err.code===2)return "暂时无法获取当前位置";
-  if(err&&err.code===3)return "获取当前位置超时，请到开阔处重试";
-  return "获取当前位置失败";
+  if(err&&err.code===1)return "定位權限被拒絕，請在 Safari 設定中允許定位";
+  if(err&&err.code===2)return "暫時無法取得目前位置";
+  if(err&&err.code===3)return "取得目前位置逾時，請到空曠處重試";
+  return "取得目前位置失敗";
 }
 
 var FAV_KEY="lp_favs_v1";
@@ -452,7 +452,7 @@ function saveFavs(list){
 }
 function applyFavorite(it){
   var lat=Number(it.lat), lng=wrapLng(it.lng);
-  if(!Number.isFinite(lat)||!Number.isFinite(lng)){toast("收藏坐标无效");return;}
+  if(!Number.isFinite(lat)||!Number.isFinite(lng)){toast("收藏座標無效");return;}
   WGS={lat:lat,lng:lng};
   saved=false;
   if(it.alt!=null&&it.alt!=="")$("alt").value=it.alt;
@@ -462,7 +462,7 @@ function applyFavorite(it){
   marker.setLatLng(p);
   map.setView(p,15);
   info();
-  toast("已加载收藏，确认后保存");
+  toast("已載入收藏，確認後儲存");
 }
 function renderFavs(){
   var box=$("favs");
@@ -482,14 +482,14 @@ function renderFavs(){
     var del=document.createElement("button");
     del.className="fdel";
     del.type="button";
-    del.textContent="删";
+    del.textContent="刪";
     del.addEventListener("click",function(e){
       e.stopPropagation();
       var next=loadFavs();
       next.splice(idx,1);
       saveFavs(next);
       if(next.length)renderFavs();else{box.innerHTML="";box.classList.remove("show");}
-      toast("已删除收藏");
+      toast("已刪除收藏");
     });
     row.appendChild(name);
     row.appendChild(del);
@@ -498,9 +498,9 @@ function renderFavs(){
   box.classList.add("show");
 }
 function addFavorite(){
-  if(!Number.isFinite(WGS.lat)||!Number.isFinite(WGS.lng)){toast("当前坐标无效");return;}
+  if(!Number.isFinite(WGS.lat)||!Number.isFinite(WGS.lng)){toast("目前座標無效");return;}
   var def=$("q").value.trim()||(WGS.lat.toFixed(4)+","+WGS.lng.toFixed(4));
-  var name=window.prompt("收藏名称",def);
+  var name=window.prompt("收藏名稱",def);
   if(name===null)return;
   name=String(name).trim()||def;
   var list=loadFavs().filter(function(it){
@@ -523,25 +523,25 @@ function toggleFavs(){
   var box=$("favs");
   if(box.classList.contains("show")){box.classList.remove("show");return;}
   $("results").classList.remove("show");
-  if(!loadFavs().length){toast("暂无收藏");return;}
+  if(!loadFavs().length){toast("暫無收藏");return;}
   renderFavs();
 }
 
 function info(){
   if(!enabledState){
-    $("info").innerHTML = "<b style='color:#ff9500'>已恢复真实定位 · 脚本放行不修改</b>　（关开定位后生效）";
+    $("info").innerHTML = "<b style='color:#ff9500'>已恢復真實定位 · 腳本放行不修改</b>　（關開定位後生效）";
     return;
   }
-  var tag = saved ? "已保存 ✓" : "未保存 · 点“保存定位”生效";
+  var tag = saved ? "已儲存 ✓" : "未儲存 · 點「儲存定位」生效";
   $("info").innerHTML = "<b style='color:"+(saved?"#34c759":"#ff9500")+"'>"+tag+"</b>　WGS-84 "+
-    WGS.lat.toFixed(5)+", "+WGS.lng.toFixed(5)+"　海拔 "+($("alt").value||"?")+"m";
+    WGS.lat.toFixed(5)+", "+WGS.lng.toFixed(5)+"　海拔 "+($("alt").value||"?")+" 公尺";
 }
 
-// 切换按钮外观：伪造中(灰按钮“恢复真实定位”) / 已恢复(橙按钮“重新开启伪造”)
+// 切换按钮外观：伪造中(灰按钮"恢复真实定位") / 已恢复(橙按钮"重新开启伪造")
 function updateEnabledUI(){
   var b=$("restorebtn");
-  if(enabledState){ b.textContent="恢复真实定位"; b.style.background="#8e8e93"; }
-  else { b.textContent="● 重新开启伪造"; b.style.background="#ff9500"; }
+  if(enabledState){ b.textContent="恢復真實定位"; b.style.background="#8e8e93"; }
+  else { b.textContent="● 重新開啟偽造"; b.style.background="#ff9500"; }
   info();
 }
 
@@ -551,10 +551,10 @@ function toggleEnabled(){
   fetch("/enable?token="+encodeURIComponent(token),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled:want})})
     .then(function(r){
       if(r.ok){ enabledState=want; updateEnabledUI();
-        toast(want ? "已开启伪造，记得关开定位生效" : "已恢复真实定位，记得关开定位生效"); }
-      else toast("切换失败 "+r.status);
+        toast(want ? "已開啟偽造，記得關開定位生效" : "已恢復真實定位，記得關開定位生效"); }
+      else toast("切換失敗 "+r.status);
     })
-    .catch(function(){ toast("网络错误"); });
+    .catch(function(){ toast("網路錯誤"); });
 }
 
 function dispPos(){return datum==="gcj"?GCJ.wgs2gcj(WGS.lat,WGS.lng):[WGS.lat,WGS.lng];}
@@ -582,17 +582,17 @@ function commit(){
   var payload={lat:WGS.lat, lng:WGS.lng,
     altitude:numOrNull("alt"), horizontalAccuracy:numOrNull("hacc"), verticalAccuracy:numOrNull("vacc")};
   fetch("/set?token="+encodeURIComponent(token),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
-    .then(function(r){ if(r.ok){ saved=true; enabledState=true; updateEnabledUI(); toast("已保存 ✓ Loon/小火箭约60秒内生效"); } else { toast("保存失败 "+r.status); } })
-    .catch(function(){ toast("网络错误"); });
+    .then(function(r){ if(r.ok){ saved=true; enabledState=true; updateEnabledUI(); toast("已儲存 ✓ Loon/小火箭約 60 秒內生效"); } else { toast("儲存失敗 "+r.status); } })
+    .catch(function(){ toast("網路錯誤"); });
 }
 
 function locateCurrent(){
   if(enabledState){
-    toast("请先恢复真实定位并刷新定位服务");
+    toast("請先恢復真實定位並刷新定位服務");
     return;
   }
   if(!navigator.geolocation){
-    toast("当前浏览器不支持定位");
+    toast("目前瀏覽器不支援定位");
     return;
   }
 
@@ -602,7 +602,7 @@ function locateCurrent(){
       var lat=Number(pos&&pos.coords&&pos.coords.latitude);
       var lng=wrapLng(pos&&pos.coords&&pos.coords.longitude);
       if(!Number.isFinite(lat)||!Number.isFinite(lng)){
-        toast("获取当前位置失败");
+        toast("取得目前位置失敗");
         setLocateBusy(false);
         return;
       }
@@ -617,7 +617,7 @@ function locateCurrent(){
         if(el!==null)$("alt").value=Math.round(el);
         info();
       });
-      toast("已定位到当前位置，请确认后保存");
+      toast("已定位到目前位置，請確認後儲存");
       setLocateBusy(false);
     },
     function(err){
@@ -634,7 +634,7 @@ function search(){
     .then(function(r){return r.json();})
     .then(function(a){
       var box=$("results"); box.innerHTML="";
-      if(!a||!a.length){ box.classList.remove("show"); toast("没找到"); return; }
+      if(!a||!a.length){ box.classList.remove("show"); toast("找不到"); return; }
       a.forEach(function(it){
         var row=document.createElement("div");
         row.className="rrow";
@@ -644,13 +644,13 @@ function search(){
           var la=+it.lat, lo=+it.lon;
           var p = datum==="gcj"?GCJ.wgs2gcj(la,lo):[la,lo];
           map.setView(p,15);
-          toast("已定位视野，在地图上点一下放置图钉");
+          toast("已移動視野，在地圖上點一下放置圖釘");
         });
         box.appendChild(row);
       });
       box.classList.add("show");
     })
-    .catch(function(){toast("搜索失败");});
+    .catch(function(){toast("搜尋失敗");});
 }
 
 function load(){
@@ -662,20 +662,23 @@ function load(){
     $("hacc").value=(d.horizontalAccuracy!==undefined?d.horizontalAccuracy:39);
     $("vacc").value=(d.verticalAccuracy!==undefined?d.verticalAccuracy:1000);
 
-    var amapVec=L.tileLayer("https://wprd0{s}.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&lang=zh_cn&size=1&scl=1&style=7",{subdomains:"1234",maxZoom:18,attribution:"高德地图"});
+    // 台湾/国际用 WGS-84 地图（预设）；高德为中国大陆 GCJ-02，偏移已自动处理
+    var osm=L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"});
+    osm.datum="wgs";
+    var esriSat=L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"© Esri"});
+    esriSat.datum="wgs";
+    var amapVec=L.tileLayer("https://wprd0{s}.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&lang=zh_cn&size=1&scl=1&style=7",{subdomains:"1234",maxZoom:18,attribution:"高德地圖"});
     amapVec.datum="gcj";
     var amapSat=L.layerGroup([
       L.tileLayer("https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}",{subdomains:"1234",maxZoom:18}),
       L.tileLayer("https://wprd0{s}.is.autonavi.com/appmaptile?x={x}&y={y}&z={z}&lang=zh_cn&size=1&scl=1&style=8",{subdomains:"1234",maxZoom:18})
     ]);
     amapSat.datum="gcj";
-    var osm=L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"});
-    osm.datum="wgs";
 
     map=L.map("map");
-    amapVec.addTo(map); datum="gcj";
+    osm.addTo(map); datum="wgs";
     map.setView(dispPos(),13);
-    L.control.layers({"高德地图":amapVec,"高德卫星":amapSat,"国外 OSM":osm},null,{collapsed:false}).addTo(map);
+    L.control.layers({"OpenStreetMap":osm,"衛星（Esri）":esriSat,"高德地圖":amapVec,"高德衛星":amapSat},null,{collapsed:false}).addTo(map);
 
     marker=L.marker(dispPos(),{draggable:true}).addTo(map);
     updateEnabledUI();
@@ -684,7 +687,7 @@ function load(){
     map.on("baselayerchange",function(e){datum=e.layer.datum||"wgs"; var p=dispPos(); marker.setLatLng(p); map.setView(p,map.getZoom()); info();});
     map.on("click",function(e){movePin(e.latlng.lat,e.latlng.lng);});
     marker.on("dragend",function(){var p=marker.getLatLng(); movePin(p.lat,p.lng);});
-  }).catch(function(){$("info").textContent="加载失败，检查 token 是否正确";});
+  }).catch(function(){$("info").textContent="載入失敗，請檢查 token 是否正確";});
 }
 
 $("btn").addEventListener("click",search);
