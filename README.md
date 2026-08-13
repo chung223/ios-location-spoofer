@@ -114,6 +114,8 @@ location-picker/worker/             # Cloudflare Worker 版（免 VPS，支持 L
 | Node 自托管 | [`location-picker/server.js`](location-picker/server.js) | 有自己的 VPS / NAS |
 | Docker | [`location-picker/Dockerfile`](location-picker/Dockerfile) | 有 Docker 环境 |
 
+> 🆕 **想当 App 用 / 一键改定位？** 部署后用 iPhone 浏览器打开地图页，Safari 分享 →「添加到主屏幕」，即可全屏独立打开（PWA）。再配合 iOS 快捷指令，做到「主屏幕点一下 / 轻点手机背面」就切定位 —— 见 [`location-picker/快捷指令一键改定位.md`](location-picker/快捷指令一键改定位.md)。
+
 Loon 插件 **远程配置 URL** 示例：
 
 ```

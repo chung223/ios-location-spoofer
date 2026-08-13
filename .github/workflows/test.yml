@@ -1,0 +1,28 @@
+# 每次 PR / 推送到 main 时跑 location-picker 的测试
+# （含 favorites / current-location / webui 与源码同步校验），在合并前挡回归。
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: location-picker/worker/package-lock.json
+      - name: Install deps
+        working-directory: location-picker/worker
+        run: npm ci
+      - name: Run tests
+        working-directory: location-picker/worker
+        run: npm test

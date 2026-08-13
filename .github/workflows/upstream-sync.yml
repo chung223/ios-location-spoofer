@@ -1,0 +1,61 @@
+# 定期/手动把上游 mekos2772/main 合并进来，能干净合并就开一个 PR 供审阅（不自动合并）。
+# 有冲突则只发警告，不开 PR —— 请按仓库根目录「从上游同步.md」手动同步。
+name: Sync from upstream
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 6 * * 1" # 每周一 06:00 UTC；可自行调整
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Merge upstream/main into sync branch
+        id: merge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/mekos2772/ios-location-spoofer.git
+          git fetch upstream main
+          git checkout -B chore/upstream-sync origin/main
+          if git merge --no-edit upstream/main; then
+            ahead=$(git rev-list --count origin/main..HEAD)
+            echo "conflicts=false" >> "$GITHUB_OUTPUT"
+            echo "ahead=$ahead" >> "$GITHUB_OUTPUT"
+          else
+            git merge --abort || true
+            echo "conflicts=true" >> "$GITHUB_OUTPUT"
+            echo "ahead=0" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Push sync branch
+        if: steps.merge.outputs.conflicts == 'false' && steps.merge.outputs.ahead != '0'
+        run: git push --force origin chore/upstream-sync
+      - name: Open PR if needed
+        if: steps.merge.outputs.conflicts == 'false' && steps.merge.outputs.ahead != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const head = "chore/upstream-sync";
+            const base = "main";
+            const { data: open } = await github.rest.pulls.list({
+              owner, repo, state: "open", head: `${owner}:${head}`, base,
+            });
+            if (open.length === 0) {
+              await github.rest.pulls.create({
+                owner, repo, head, base,
+                title: "chore: 从上游 mekos2772 同步更新",
+                body: "由 upstream-sync workflow 自动生成：把 upstream/main 合并进来。请审阅后合并。\n\n若上游与本 fork 有冲突，本 PR 不会自动生成，请按仓库根目录 `从上游同步.md` 手动同步。",
+              });
+            }
+      - name: Warn on conflicts
+        if: steps.merge.outputs.conflicts == 'true'
+        run: echo "::warning::从上游合并有冲突，未开 PR。请按「从上游同步.md」手动同步。"

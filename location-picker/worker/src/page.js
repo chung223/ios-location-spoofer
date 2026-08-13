@@ -5,35 +5,65 @@ export const PAGE = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>定位选点</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="定位选点">
+<meta name="theme-color" content="#007aff">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" type="image/png" href="/icon-180.png">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
 <style>
-  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+  :root{
+    --bg:#fff;--fg:#111;--card:#fff;--line:#e2e2e2;--rowline:#eee;
+    --input-bg:#fff;--input-line:#ccc;--label:#444;--muted:#555;
+    --hint-bg:#f2f2f7;--active:#f0f6ff;
+  }
+  :root[data-theme="dark"]{
+    --bg:#1c1c1e;--fg:#f2f2f7;--card:#2c2c2e;--line:#3a3a3c;--rowline:#3a3a3c;
+    --input-bg:#2c2c2e;--input-line:#48484a;--label:#c7c7cc;--muted:#aeaeb2;
+    --hint-bg:#2c2c2e;--active:#0a2540;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#1c1c1e;--fg:#f2f2f7;--card:#2c2c2e;--line:#3a3a3c;--rowline:#3a3a3c;
+      --input-bg:#2c2c2e;--input-line:#48484a;--label:#c7c7cc;--muted:#aeaeb2;
+      --hint-bg:#2c2c2e;--active:#0a2540;
+    }
+  }
+  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--fg)}
   .bar{padding:8px;display:flex;gap:6px;box-sizing:border-box}
-  .bar input{flex:1;padding:10px;font-size:16px;border:1px solid #ccc;border-radius:8px}
+  .bar input{flex:1;padding:10px;font-size:16px;border:1px solid var(--input-line);border-radius:8px;background:var(--input-bg);color:var(--fg)}
   .bar button{padding:10px 14px;font-size:16px;border:0;border-radius:8px;background:#007aff;color:#fff}
   .bar button:disabled{opacity:.55}
-  .results{margin:0 8px;border:1px solid #e2e2e2;border-radius:8px;max-height:34vh;overflow:auto;display:none}
+  .results{margin:0 8px;border:1px solid var(--line);border-radius:8px;max-height:34vh;overflow:auto;display:none;background:var(--card)}
   .results.show{display:block}
-  .rrow{padding:10px 12px;font-size:14px;border-bottom:1px solid #eee;color:#222;display:flex;align-items:center;gap:8px}
+  .rrow{padding:10px 12px;font-size:14px;border-bottom:1px solid var(--rowline);color:var(--fg);display:flex;align-items:center;gap:8px}
   .rrow:last-child{border-bottom:0}
-  .rrow:active{background:#f0f6ff}
+  .rrow:active{background:var(--active)}
   .rrow .fname{flex:1;min-width:0}
   .rrow .fdel{padding:6px 10px;font-size:13px;border:0;border-radius:6px;background:#ff3b30;color:#fff;flex-shrink:0}
-  #map{height:52vh}
+  #map{height:52vh;background:var(--card)}
   #info{padding:8px 10px;font-size:13px;line-height:1.4}
   .opts{padding:6px 10px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
-  .opts label{font-size:13px;color:#444;display:flex;flex-direction:column}
-  .opts input{width:88px;padding:8px;font-size:15px;border:1px solid #ccc;border-radius:6px;margin-top:2px}
+  .opts label{font-size:13px;color:var(--label);display:flex;flex-direction:column}
+  .opts input{width:88px;padding:8px;font-size:15px;border:1px solid var(--input-line);border-radius:6px;margin-top:2px;background:var(--input-bg);color:var(--fg)}
   #savebtn{padding:11px 20px;font-size:16px;border:0;border-radius:8px;background:#34c759;color:#fff;font-weight:600}
   #restorebtn{padding:11px 16px;font-size:15px;border:0;border-radius:8px;background:#8e8e93;color:#fff}
-  #favadd,#favlistbtn{padding:11px 14px;font-size:15px;border:0;border-radius:8px;background:#5856d6;color:#fff}
+  #favadd,#favlistbtn,#themebtn{padding:11px 14px;font-size:15px;border:0;border-radius:8px;background:#5856d6;color:#fff}
+  #themebtn{background:#6c6c70}
   .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
     background:rgba(0,0,0,.85);color:#fff;padding:10px 16px;border-radius:8px;
     font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999}
   .toast.show{opacity:1}
+  .pwahint{margin:10px 8px 6px;padding:9px 11px;font-size:12px;color:var(--muted);background:var(--hint-bg);border-radius:8px;line-height:1.6}
+  @media (display-mode: standalone){.pwahint{display:none}}
+  .foot{margin:0 8px 16px;font-size:12px;color:var(--muted);line-height:1.6}
+  .foot a{color:#007aff}
 </style>
 </head>
 <body>
+<script>try{var _t=localStorage.getItem("lp_theme");if(_t)document.documentElement.setAttribute("data-theme",_t);}catch(e){}</script>
 <div class="bar">
   <input id="q" placeholder="搜地名，回车列出候选（只预览，不改定位）">
   <button id="locatebtn" disabled>当前位置</button>
@@ -50,12 +80,31 @@ export const PAGE = `<!doctype html>
   <button id="restorebtn">恢复真实定位</button>
   <button id="favadd">收藏此点</button>
   <button id="favlistbtn">我的收藏</button>
+  <button id="themebtn">🌙 深色</button>
 </div>
 <div class="results" id="favs"></div>
+<div class="pwahint">💡 想像 App 一样用？在 Safari 点底部「分享」→「添加到主屏幕」，即可全屏独立打开。想“一键切换定位”，见仓库「快捷指令一键改定位」教程，配合 iOS 快捷指令 + 背面轻点即可。</div>
+<div class="foot">本工具基于 <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener noreferrer">AGPL-3.0</a> 开源 · <a href="https://github.com/chung223/ios-location-spoofer" target="_blank" rel="noopener noreferrer">源码</a></div>
 <div class="toast" id="toast"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script>
 var token = new URLSearchParams(location.search).get("token") || "";
+
+// PWA manifest：动态注入（带 token，供 Android/桌面安装；iOS 靠 apple meta 也能加主屏幕）
+(function(){try{var l=document.createElement("link");l.rel="manifest";l.href="/manifest.webmanifest?token="+encodeURIComponent(token);document.head.appendChild(l);}catch(e){}})();
+
+// 深色模式：默认跟随系统；点按钮在 深/浅 间切换并记住（早期内联脚本已先应用，避免闪白）
+function currentTheme(){
+  var t=document.documentElement.getAttribute("data-theme");
+  if(t==="dark"||t==="light")return t;
+  return (window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";
+}
+function applyTheme(t){
+  if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);
+  else document.documentElement.removeAttribute("data-theme");
+}
+function updateThemeBtn(){var b=document.getElementById("themebtn");if(b)b.textContent=currentTheme()==="dark"?"☀️ 浅色":"🌙 深色";}
+function toggleTheme(){var n=currentTheme()==="dark"?"light":"dark";applyTheme(n);try{localStorage.setItem("lp_theme",n);}catch(e){}updateThemeBtn();}
 
 var GCJ = (function(){
   var PI = Math.PI, a = 6378245.0, ee = 0.00669342162296594323;
@@ -370,6 +419,8 @@ $("savebtn").addEventListener("click",commit);
 $("restorebtn").addEventListener("click",toggleEnabled);
 $("favadd").addEventListener("click",addFavorite);
 $("favlistbtn").addEventListener("click",toggleFavs);
+$("themebtn").addEventListener("click",toggleTheme);
+updateThemeBtn();
 load();
 </script>
 </body>
