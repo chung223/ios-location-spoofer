@@ -49,6 +49,25 @@ npm run deploy
 
 记下输出的地址，例如 `https://ios-location-picker.你的账号.workers.dev`。
 
+## GitHub Actions 自动部署（可选，push 即部署）
+
+配好后，往 `main` 推送、只要改动了 `location-picker/worker/**`，就会自动 `wrangler deploy` 到 Cloudflare。工作流文件在 [`.github/workflows/deploy-picker.yml`](../../.github/workflows/deploy-picker.yml)。
+
+**一次性设置：**
+
+1. **拿 Cloudflare API Token**：Cloudflare 仪表盘 → 右上头像 → **My Profile → API Tokens → Create Token** → 用 **「Edit Cloudflare Workers」** 模板（已含 Workers 脚本 + KV 权限），账号选你自己的 → 创建后**复制那串 token（只显示一次）**。
+2. **存进 GitHub**：你的仓库 → **Settings → Secrets and variables → Actions → New repository secret**，名称填 `CLOUDFLARE_API_TOKEN`，值粘上一步的 token。
+3. **确认 KV 与口令**（各一次）：
+   - `wrangler.jsonc` 里的 KV `id` 必须是**你自己账号**建的 namespace（`npx wrangler kv namespace create LOC_KV` 拿到 id 填进去）。
+   - 设一次 Worker 访问口令：`npx wrangler secret put TOKEN`（**部署不会覆盖**已存的机密和 KV 数据，所以只需设一次）。
+
+**之后：** push 到 `main` 自动部署；也能到仓库 **Actions** 页点 **Run workflow** 手动触发。
+
+> ⚠️ 说明：
+> - 这个 Action 部署的是 **Wrangler 版**（`worker/src/`）到 Worker 名 `ios-location-picker`。启用后请**统一用 git 管理**，别再去 Cloudflare 后台手改代码——下次 push 会覆盖掉。想改逻辑就改 `worker/src/` 再 push。
+> - 只有**多个 Cloudflare 账号**时才需要额外指定账号：在 `wrangler.jsonc` 里加 `"account_id": "你的账号ID"`。单账号免。
+> - 本工作流跑在 GitHub Actions 上，与「GitHub Pages」无关；公开仓库免费。
+
 ## Loon 插件配置
 
 Loon → 设置 → 插件 → iOS Location Spoofer → **远程配置 URL**：

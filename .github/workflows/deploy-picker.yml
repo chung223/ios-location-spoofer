@@ -1,0 +1,48 @@
+# 自动把 location-picker（Cloudflare Worker 版）部署到 Cloudflare。
+# 触发：推送到 main 且改动了 worker 代码时；也可在 Actions 页手动运行。
+#
+# 启用前需要（一次性，详见 location-picker/worker/README.md「GitHub Actions 自动部署」）：
+#   1. 在 GitHub 仓库加 Secret：Settings → Secrets and variables → Actions
+#      → New repository secret，名称 CLOUDFLARE_API_TOKEN。
+#   2. 确认 location-picker/worker/wrangler.jsonc 里的 KV id 是你自己账号建的 namespace id。
+#   3. 设过一次 Worker 访问口令：cd location-picker/worker && npx wrangler secret put TOKEN
+#      （部署不会覆盖已存的机密和 KV 数据）。
+name: Deploy location-picker
+
+on:
+  push:
+    branches: [main] # ← 想从别的分支自动部署就改这里
+    paths:
+      - "location-picker/worker/**"
+      - ".github/workflows/deploy-picker.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-location-picker
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: location-picker/worker/package-lock.json
+      - name: Install deps
+        working-directory: location-picker/worker
+        run: npm ci
+      - name: Test（顺带校验 webui 与源码同步等）
+        working-directory: location-picker/worker
+        run: npm test
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: location-picker/worker
+          command: deploy
