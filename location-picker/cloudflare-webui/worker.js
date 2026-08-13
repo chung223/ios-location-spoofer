@@ -688,6 +688,42 @@ export default {
       return jsonResponse(loc);
     }
 
+    // 用网址就能改定位（GET，方便加书签 / 主屏幕图标 / 极简捷径）：
+    //   /set?token=..&lat=..&lng=..   （可选 &alt= &hacc= &vacc=）
+    if (url.pathname === "/set" && request.method === "GET") {
+      if (!auth.ok) {
+        return unauthorized();
+      }
+      const la = Number(url.searchParams.get("lat"));
+      const loRaw = Number(url.searchParams.get("lng"));
+      if (!Number.isFinite(la) || !Number.isFinite(loRaw) || la < -90 || la > 90) {
+        return jsonResponse({ error: "bad coords" }, 400);
+      }
+      const lo = wrapLng(loRaw);
+      const cur = await readLoc(env);
+      cur.enabled = true;
+      cur.latitude = la;
+      cur.longitude = lo;
+      setInt(cur, "altitude", url.searchParams.get("alt"));
+      setInt(cur, "horizontalAccuracy", url.searchParams.get("hacc"));
+      setInt(cur, "verticalAccuracy", url.searchParams.get("vacc"));
+      await writeLoc(env, cur);
+      const html =
+        "<!doctype html><meta charset=utf-8>" +
+        "<meta name=viewport content='width=device-width,initial-scale=1'>" +
+        "<body style='margin:0;font-family:-apple-system,sans-serif;background:#111;color:#fff;display:flex;" +
+        "flex-direction:column;align-items:center;justify-content:center;height:100vh;text-align:center'>" +
+        "<div style='font-size:52px'>✅</div>" +
+        "<div style='font-size:20px;font-weight:600;margin-top:8px'>已設定定位</div>" +
+        "<div style='font-family:ui-monospace,monospace;margin-top:6px'>" +
+        la.toFixed(5) + ", " + lo.toFixed(5) +
+        "</div><div style='color:#8e8e93;font-size:13px;margin-top:14px'>關開一次定位服務即生效</div></body>";
+      return new Response(html, {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", ...CORS },
+      });
+    }
+
     if (url.pathname === "/set" && request.method === "POST") {
       if (!auth.ok) {
         return unauthorized();

@@ -115,6 +115,34 @@ function handler(req, res) {
     return send(res, 200, "application/json", JSON.stringify(readLoc()));
   }
 
+  // ---- 用网址就能改定位（GET，方便加书签 / 主屏幕图标 / 极简捷径）：/set?token=..&lat=..&lng=.. ----
+  if (url.pathname === "/set" && req.method === "GET") {
+    if (!checkToken(token, res)) return;
+    const la = Number(url.searchParams.get("lat"));
+    const lo0 = Number(url.searchParams.get("lng"));
+    if (!isFinite(la) || !isFinite(lo0) || la < -90 || la > 90 || lo0 < -180 || lo0 > 180) {
+      return send(res, 400, "application/json", '{"error":"bad coords"}');
+    }
+    const cur = readLoc();
+    cur.enabled = true;
+    cur.latitude = la;
+    cur.longitude = lo0;
+    function setIntQ(key, v) {
+      if (v !== undefined && v !== null && v !== "" && isFinite(Number(v))) cur[key] = Math.round(Number(v));
+    }
+    setIntQ("altitude", url.searchParams.get("alt"));
+    setIntQ("horizontalAccuracy", url.searchParams.get("hacc"));
+    setIntQ("verticalAccuracy", url.searchParams.get("vacc"));
+    writeLoc(cur);
+    const html = "<!doctype html><meta charset=utf-8>" +
+      "<meta name=viewport content='width=device-width,initial-scale=1'>" +
+      "<body style='margin:0;font-family:-apple-system,sans-serif;background:#111;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;text-align:center'>" +
+      "<div style='font-size:52px'>✅</div><div style='font-size:20px;font-weight:600;margin-top:8px'>已設定定位</div>" +
+      "<div style='font-family:ui-monospace,monospace;margin-top:6px'>" + la.toFixed(5) + ", " + lo0.toFixed(5) + "</div>" +
+      "<div style='color:#8e8e93;font-size:13px;margin-top:14px'>關開一次定位服務即生效</div></body>";
+    return send(res, 200, "text/html; charset=utf-8", html);
+  }
+
   // ---- 网页保存（前端已转好 WGS-84 再发过来；海拔/精度可选） ----
   if (url.pathname === "/set" && req.method === "POST") {
     if (!checkToken(token, res)) return;
