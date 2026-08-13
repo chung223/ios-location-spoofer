@@ -14,11 +14,11 @@ const pages = [
 
 for (const [label, content] of pages) {
   test(`${label} exposes a guarded current-location control`, () => {
-    assert.match(content, /<button id="locatebtn"[^>]*>当前位置<\/button>/);
+    assert.match(content, /<button id="locatebtn"[^>]*>目前位置<\/button>/);
     assert.match(content, /function locateCurrent\(\)/);
     assert.match(
       content,
-      /if\s*\(enabledState\)\s*\{\s*toast\("请先恢复真实定位并刷新定位服务"\);\s*return;\s*\}/s,
+      /if\s*\(enabledState\)\s*\{\s*toast\("請先恢復真實定位並刷新定位服務"\);\s*return;\s*\}/s,
     );
     assert.match(content, /navigator\.geolocation\.getCurrentPosition\(/);
   });
@@ -38,9 +38,9 @@ for (const [label, content] of pages) {
   });
 
   test(`${label} maps Geolocation failures to user-facing messages`, () => {
-    assert.match(content, /定位权限被拒绝，请在 Safari 设置中允许定位/);
-    assert.match(content, /暂时无法获取当前位置/);
-    assert.match(content, /获取当前位置超时，请到开阔处重试/);
-    assert.match(content, /当前浏览器不支持定位/);
+    assert.match(content, /定位權限被拒絕，請在 Safari 設定中允許定位/);
+    assert.match(content, /暫時無法取得目前位置/);
+    assert.match(content, /取得目前位置逾時，請到空曠處重試/);
+    assert.match(content, /目前瀏覽器不支援定位/);
   });
 }
