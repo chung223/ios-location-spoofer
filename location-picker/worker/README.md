@@ -2,6 +2,10 @@
 
 与 `../server.js` API 完全兼容，免 VPS、自带 HTTPS，支持 **Loon / Shadowrocket / Surge** 的 `configUrl`。
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/chung223/ios-location-spoofer/tree/main/location-picker/worker)
+
+> 点上面的按钮可一键把本目录部署到你自己的 Cloudflare（会引导你连接 GitHub、建 Worker）。部署后仍需按下文建 KV `LOC_KV` 并设 `TOKEN` 机密。想手动/命令行部署或配自动部署，见下文。
+
 ## 接口
 
 | 路径 | 方法 | 说明 |

@@ -45,6 +45,12 @@ const ICON_180 = Buffer.from(
   "base64",
 );
 
+// 512×512 同款图标，供 PWA manifest（Android/桌面安装）使用。
+const ICON_512 = Buffer.from(
+  "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",
+  "base64",
+);
+
 // 常量时间比较，避免通过响应时延逐字节爆破 token
 function safeEqual(a, b) {
   const ab = Buffer.from(String(a));
@@ -187,6 +193,34 @@ function handler(req, res) {
     return res.end(ICON_180);
   }
 
+  if (url.pathname === "/icon-512.png" && req.method === "GET") {
+    res.writeHead(200, {
+      "Content-Type": "image/png",
+      "Access-Control-Allow-Origin": "*",
+      "Cache-Control": "public, max-age=604800, immutable",
+    });
+    return res.end(ICON_512);
+  }
+
+  // ---- PWA manifest（带 token；start_url 含 token 便于安装后直接打开） ----
+  if (url.pathname === "/manifest.webmanifest" && req.method === "GET") {
+    if (!checkToken(token, res)) return;
+    const manifest = {
+      name: "定位选点",
+      short_name: "定位选点",
+      start_url: "/?token=" + encodeURIComponent(token || ""),
+      scope: "/",
+      display: "standalone",
+      background_color: "#ffffff",
+      theme_color: "#007aff",
+      icons: [
+        { src: "/icon-180.png", sizes: "180x180", type: "image/png" },
+        { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      ],
+    };
+    return send(res, 200, "application/manifest+json", JSON.stringify(manifest));
+  }
+
   // ---- 地图网页（与 Worker 版一致，必须带正确 token） ----
   if (url.pathname === "/" && req.method === "GET") {
     if (!checkToken(token, res)) return;
@@ -239,6 +273,7 @@ function start() {
 
 start();
 
+// === PAGE:BEGIN 由 worker/src/page.js 生成，勿手改（改 UI 请改 page.js 再 npm run build:webui）===
 const PAGE = `<!doctype html>
 <html lang="zh">
 <head>
@@ -252,37 +287,58 @@ const PAGE = `<!doctype html>
 <meta name="theme-color" content="#007aff">
 <link rel="apple-touch-icon" href="/icon-180.png">
 <link rel="icon" type="image/png" href="/icon-180.png">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
 <style>
-  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+  :root{
+    --bg:#fff;--fg:#111;--card:#fff;--line:#e2e2e2;--rowline:#eee;
+    --input-bg:#fff;--input-line:#ccc;--label:#444;--muted:#555;
+    --hint-bg:#f2f2f7;--active:#f0f6ff;
+  }
+  :root[data-theme="dark"]{
+    --bg:#1c1c1e;--fg:#f2f2f7;--card:#2c2c2e;--line:#3a3a3c;--rowline:#3a3a3c;
+    --input-bg:#2c2c2e;--input-line:#48484a;--label:#c7c7cc;--muted:#aeaeb2;
+    --hint-bg:#2c2c2e;--active:#0a2540;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#1c1c1e;--fg:#f2f2f7;--card:#2c2c2e;--line:#3a3a3c;--rowline:#3a3a3c;
+      --input-bg:#2c2c2e;--input-line:#48484a;--label:#c7c7cc;--muted:#aeaeb2;
+      --hint-bg:#2c2c2e;--active:#0a2540;
+    }
+  }
+  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--fg)}
   .bar{padding:8px;display:flex;gap:6px;box-sizing:border-box}
-  .bar input{flex:1;padding:10px;font-size:16px;border:1px solid #ccc;border-radius:8px}
+  .bar input{flex:1;padding:10px;font-size:16px;border:1px solid var(--input-line);border-radius:8px;background:var(--input-bg);color:var(--fg)}
   .bar button{padding:10px 14px;font-size:16px;border:0;border-radius:8px;background:#007aff;color:#fff}
   .bar button:disabled{opacity:.55}
-  .results{margin:0 8px;border:1px solid #e2e2e2;border-radius:8px;max-height:34vh;overflow:auto;display:none}
+  .results{margin:0 8px;border:1px solid var(--line);border-radius:8px;max-height:34vh;overflow:auto;display:none;background:var(--card)}
   .results.show{display:block}
-  .rrow{padding:10px 12px;font-size:14px;border-bottom:1px solid #eee;color:#222;display:flex;align-items:center;gap:8px}
+  .rrow{padding:10px 12px;font-size:14px;border-bottom:1px solid var(--rowline);color:var(--fg);display:flex;align-items:center;gap:8px}
   .rrow:last-child{border-bottom:0}
-  .rrow:active{background:#f0f6ff}
+  .rrow:active{background:var(--active)}
   .rrow .fname{flex:1;min-width:0}
   .rrow .fdel{padding:6px 10px;font-size:13px;border:0;border-radius:6px;background:#ff3b30;color:#fff;flex-shrink:0}
-  #map{height:52vh}
+  #map{height:52vh;background:var(--card)}
   #info{padding:8px 10px;font-size:13px;line-height:1.4}
   .opts{padding:6px 10px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
-  .opts label{font-size:13px;color:#444;display:flex;flex-direction:column}
-  .opts input{width:88px;padding:8px;font-size:15px;border:1px solid #ccc;border-radius:6px;margin-top:2px}
+  .opts label{font-size:13px;color:var(--label);display:flex;flex-direction:column}
+  .opts input{width:88px;padding:8px;font-size:15px;border:1px solid var(--input-line);border-radius:6px;margin-top:2px;background:var(--input-bg);color:var(--fg)}
   #savebtn{padding:11px 20px;font-size:16px;border:0;border-radius:8px;background:#34c759;color:#fff;font-weight:600}
   #restorebtn{padding:11px 16px;font-size:15px;border:0;border-radius:8px;background:#8e8e93;color:#fff}
-  #favadd,#favlistbtn{padding:11px 14px;font-size:15px;border:0;border-radius:8px;background:#5856d6;color:#fff}
+  #favadd,#favlistbtn,#themebtn{padding:11px 14px;font-size:15px;border:0;border-radius:8px;background:#5856d6;color:#fff}
+  #themebtn{background:#6c6c70}
   .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
     background:rgba(0,0,0,.85);color:#fff;padding:10px 16px;border-radius:8px;
     font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999}
   .toast.show{opacity:1}
-  .pwahint{margin:10px 8px 16px;padding:9px 11px;font-size:12px;color:#555;background:#f2f2f7;border-radius:8px;line-height:1.6}
+  .pwahint{margin:10px 8px 6px;padding:9px 11px;font-size:12px;color:var(--muted);background:var(--hint-bg);border-radius:8px;line-height:1.6}
   @media (display-mode: standalone){.pwahint{display:none}}
+  .foot{margin:0 8px 16px;font-size:12px;color:var(--muted);line-height:1.6}
+  .foot a{color:#007aff}
 </style>
 </head>
 <body>
+<script>try{var _t=localStorage.getItem("lp_theme");if(_t)document.documentElement.setAttribute("data-theme",_t);}catch(e){}</script>
 <div class="bar">
   <input id="q" placeholder="搜地名，回车列出候选（只预览，不改定位）">
   <button id="locatebtn" disabled>当前位置</button>
@@ -299,15 +355,32 @@ const PAGE = `<!doctype html>
   <button id="restorebtn">恢复真实定位</button>
   <button id="favadd">收藏此点</button>
   <button id="favlistbtn">我的收藏</button>
+  <button id="themebtn">🌙 深色</button>
 </div>
 <div class="results" id="favs"></div>
 <div class="pwahint">💡 想像 App 一样用？在 Safari 点底部「分享」→「添加到主屏幕」，即可全屏独立打开。想“一键切换定位”，见仓库「快捷指令一键改定位」教程，配合 iOS 快捷指令 + 背面轻点即可。</div>
+<div class="foot">本工具基于 <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener noreferrer">AGPL-3.0</a> 开源 · <a href="https://github.com/chung223/ios-location-spoofer" target="_blank" rel="noopener noreferrer">源码</a></div>
 <div class="toast" id="toast"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script>
 var token = new URLSearchParams(location.search).get("token") || "";
 
-// ---------- GCJ-02 <-> WGS-84 坐标转换（中国地图偏移修正） ----------
+// PWA manifest：动态注入（带 token，供 Android/桌面安装；iOS 靠 apple meta 也能加主屏幕）
+(function(){try{var l=document.createElement("link");l.rel="manifest";l.href="/manifest.webmanifest?token="+encodeURIComponent(token);document.head.appendChild(l);}catch(e){}})();
+
+// 深色模式：默认跟随系统；点按钮在 深/浅 间切换并记住（早期内联脚本已先应用，避免闪白）
+function currentTheme(){
+  var t=document.documentElement.getAttribute("data-theme");
+  if(t==="dark"||t==="light")return t;
+  return (window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";
+}
+function applyTheme(t){
+  if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);
+  else document.documentElement.removeAttribute("data-theme");
+}
+function updateThemeBtn(){var b=document.getElementById("themebtn");if(b)b.textContent=currentTheme()==="dark"?"☀️ 浅色":"🌙 深色";}
+function toggleTheme(){var n=currentTheme()==="dark"?"light":"dark";applyTheme(n);try{localStorage.setItem("lp_theme",n);}catch(e){}updateThemeBtn();}
+
 var GCJ = (function(){
   var PI = Math.PI, a = 6378245.0, ee = 0.00669342162296594323;
   function outOfChina(lat,lng){return (lng<72.004||lng>137.8347)||(lat<0.8293||lat>55.8271);}
@@ -321,7 +394,7 @@ var GCJ = (function(){
     var r=300.0+x+2.0*y+0.1*x*x+0.1*x*y+0.1*Math.sqrt(Math.abs(x));
     r+=(20.0*Math.sin(6.0*x*PI)+20.0*Math.sin(2.0*x*PI))*2.0/3.0;
     r+=(20.0*Math.sin(x*PI)+40.0*Math.sin(x/3.0*PI))*2.0/3.0;
-    r+=(150.0*Math.sin(x/12.0*PI)+300.0*Math.sin(x/30.0*PI))*2.0/3.0;return r;
+    r+=(150.0*Math.sin(x/12.0*PI)+300*Math.sin(x/30.0*PI))*2.0/3.0;return r;
   }
   function wgs2gcj(lat,lng){
     if(outOfChina(lat,lng))return [lat,lng];
@@ -340,16 +413,16 @@ var GCJ = (function(){
   return {wgs2gcj:wgs2gcj, gcj2wgs:gcj2wgs};
 })();
 
-// ---------- 状态 ----------
 var map, marker;
-var WGS = {lat:0, lng:0};   // 当前“定位点(图钉)”的真值 WGS-84（预览用，未必已保存）
-var datum = "gcj";          // 当前底图坐标系：'gcj'(高德) 或 'wgs'(OSM)
-var saved = true;           // 图钉当前位置是否已保存到设备
-var enabledState = true;    // true=伪造中；false=已恢复真实定位（脚本放行）
+var WGS = {lat:0, lng:0};
+var datum = "gcj";
+var saved = true;
+var enabledState = true;  // true=伪造中；false=已恢复真实定位（脚本放行）
 
 function $(id){return document.getElementById(id);}
 function toast(t){var e=$("toast");e.textContent=t;e.classList.add("show");setTimeout(function(){e.classList.remove("show");},1800);}
 function numOrNull(id){var v=$(id).value.trim();return v===""?null:Number(v);}
+// Leaflet 在重复世界地图上可能返回 -239 这类经度，需要归一化。
 function wrapLng(lng){return ((((Number(lng)+180)%360)+360)%360)-180;}
 
 function setLocateBusy(busy){
@@ -487,7 +560,6 @@ function toggleEnabled(){
 function dispPos(){return datum==="gcj"?GCJ.wgs2gcj(WGS.lat,WGS.lng):[WGS.lat,WGS.lng];}
 function toWgs(lat,lng){lng=wrapLng(lng);return datum==="gcj"?GCJ.gcj2wgs(lat,lng):[lat,lng];}
 
-// 按地形取海拔（open-meteo 免费高程接口，传 WGS-84）
 function fetchElevation(lat,lng){
   lng=wrapLng(lng);
   return fetch("https://api.open-meteo.com/v1/elevation?latitude="+lat+"&longitude="+lng)
@@ -496,7 +568,6 @@ function fetchElevation(lat,lng){
     .catch(function(){return null;});
 }
 
-// 移动定位点(图钉)：只预览，不保存
 function movePin(dispLat,dispLng){
   dispLng=wrapLng(dispLng);
   var w=toWgs(dispLat,dispLng);
@@ -507,12 +578,11 @@ function movePin(dispLat,dispLng){
   fetchElevation(WGS.lat,WGS.lng).then(function(el){ if(el!==null)$("alt").value=Math.round(el); info(); });
 }
 
-// 保存定位点到设备（写入 loc.json，Shadowrocket 才会用）
 function commit(){
   var payload={lat:WGS.lat, lng:WGS.lng,
     altitude:numOrNull("alt"), horizontalAccuracy:numOrNull("hacc"), verticalAccuracy:numOrNull("vacc")};
   fetch("/set?token="+encodeURIComponent(token),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
-    .then(function(r){ if(r.ok){ saved=true; enabledState=true; updateEnabledUI(); toast("已保存 ✓ 记得关开定位生效"); } else { toast("保存失败 "+r.status); } })
+    .then(function(r){ if(r.ok){ saved=true; enabledState=true; updateEnabledUI(); toast("已保存 ✓ Loon/小火箭约60秒内生效"); } else { toast("保存失败 "+r.status); } })
     .catch(function(){ toast("网络错误"); });
 }
 
@@ -558,7 +628,6 @@ function locateCurrent(){
   );
 }
 
-// 搜索：列出多个候选，点选只移动地图视野（不动定位点、不保存）
 function search(){
   var q=$("q").value.trim(); if(!q) return;
   fetch("https://nominatim.openstreetmap.org/search?format=json&addressdetails=0&limit=8&q="+encodeURIComponent(q))
@@ -574,7 +643,7 @@ function search(){
           box.classList.remove("show"); box.innerHTML="";
           var la=+it.lat, lo=+it.lon;
           var p = datum==="gcj"?GCJ.wgs2gcj(la,lo):[la,lo];
-          map.setView(p,15);            // 只移动视野；要设为定位，请在地图上点一下放图钉
+          map.setView(p,15);
           toast("已定位视野，在地图上点一下放置图钉");
         });
         box.appendChild(row);
@@ -625,7 +694,10 @@ $("savebtn").addEventListener("click",commit);
 $("restorebtn").addEventListener("click",toggleEnabled);
 $("favadd").addEventListener("click",addFavorite);
 $("favlistbtn").addEventListener("click",toggleFavs);
+$("themebtn").addEventListener("click",toggleTheme);
+updateThemeBtn();
 load();
 </script>
 </body>
 </html>`;
+// === PAGE:END ===
