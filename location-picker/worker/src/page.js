@@ -186,9 +186,12 @@ export const PAGE = `<!doctype html>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script>
 var token = new URLSearchParams(location.search).get("token") || "";
+// 多用户：URL 带 ?u=<名字> 时，所有 API 请求都带上，读写各自独立的定位（分享给朋友用）。
+var scope = new URLSearchParams(location.search).get("u") || "";
+function apiUrl(path){return path+"?token="+encodeURIComponent(token)+(scope?"&u="+encodeURIComponent(scope):"");}
 
-// PWA manifest：动态注入（带 token，供 Android/桌面安装；iOS 靠 apple meta 也能加主屏幕）
-(function(){try{var l=document.createElement("link");l.rel="manifest";l.href="/manifest.webmanifest?token="+encodeURIComponent(token);document.head.appendChild(l);}catch(e){}})();
+// PWA manifest：动态注入（带 token + u，供 Android/桌面安装；iOS 靠 apple meta 也能加主屏幕）
+(function(){try{var l=document.createElement("link");l.rel="manifest";l.href=apiUrl("/manifest.webmanifest");document.head.appendChild(l);}catch(e){}})();
 
 // 深色模式：默认跟随系统；点按钮在 深/浅 间切换并记住（早期内联脚本已先应用，避免闪白）
 function currentTheme(){
@@ -377,7 +380,7 @@ function updateEnabledUI(){
 // 一键切换 伪造/恢复真实
 function toggleEnabled(){
   var want = !enabledState;
-  fetch("/enable?token="+encodeURIComponent(token),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled:want})})
+  fetch(apiUrl("/enable"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled:want})})
     .then(function(r){
       if(r.ok){ enabledState=want; updateEnabledUI();
         toast(want ? "已開啟偽造，記得關開定位生效" : "已恢復真實定位，記得關開定位生效"); }
@@ -410,7 +413,7 @@ function movePin(dispLat,dispLng){
 function commit(){
   var payload={lat:WGS.lat, lng:WGS.lng,
     altitude:numOrNull("alt"), horizontalAccuracy:numOrNull("hacc"), verticalAccuracy:numOrNull("vacc")};
-  fetch("/set?token="+encodeURIComponent(token),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
+  fetch(apiUrl("/set"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
     .then(function(r){ if(r.ok){ saved=true; enabledState=true; updateEnabledUI(); toast("已儲存 ✓ Loon/小火箭約 60 秒內生效"); } else { toast("儲存失敗 "+r.status); } })
     .catch(function(){ toast("網路錯誤"); });
 }
@@ -483,7 +486,7 @@ function search(){
 }
 
 function load(){
-  fetch("/loc.json?token="+encodeURIComponent(token)).then(function(r){return r.json();}).then(function(d){
+  fetch(apiUrl("/loc.json")).then(function(r){return r.json();}).then(function(d){
     WGS={lat:d.latitude, lng:d.longitude};
     saved=true;
     enabledState=(d.enabled!==false);

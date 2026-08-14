@@ -108,9 +108,22 @@ function checkToken(request, env) {
   return { ok: true };
 }
 
-async function readLoc(env) {
+// 多用户：URL 带 ?u=<名字> 时，定位存到独立的 KV 键（loc:<名字>），
+// 一个部署即可分享给多位朋友，各自的定位互不干扰。
+// 不带 u（或清洗后为空）时用默认键 "loc"，与旧的单人用法完全兼容。
+// 名字只保留 a-z 0-9 _ - （小写），最长 32 字符，避免污染 KV 键。
+function scopeKey(url) {
+  const raw = url.searchParams.get("u");
+  if (!raw) {
+    return KV_KEY;
+  }
+  const safe = String(raw).toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+  return safe ? KV_KEY + ":" + safe : KV_KEY;
+}
+
+async function readLoc(env, key) {
   try {
-    const raw = await env.LOC_KV.get(KV_KEY);
+    const raw = await env.LOC_KV.get(key);
     if (!raw) {
       return { ...DEFAULT };
     }
@@ -120,8 +133,8 @@ async function readLoc(env) {
   }
 }
 
-async function writeLoc(env, obj) {
-  await env.LOC_KV.put(KV_KEY, JSON.stringify(obj));
+async function writeLoc(env, key, obj) {
+  await env.LOC_KV.put(key, JSON.stringify(obj));
 }
 
 function setInt(target, key, value) {
@@ -142,12 +155,13 @@ export default {
 
     const url = new URL(request.url);
     const auth = checkToken(request, env);
+    const locKey = scopeKey(url); // 多用户：?u=<名字> → 独立定位
 
     if (url.pathname === "/loc.json" && request.method === "GET") {
       if (!auth.ok) {
         return unauthorized();
       }
-      const loc = await readLoc(env);
+      const loc = await readLoc(env, locKey);
       return jsonResponse(loc);
     }
 
@@ -163,14 +177,14 @@ export default {
         return jsonResponse({ error: "bad coords" }, 400);
       }
       const lo = wrapLng(loRaw);
-      const cur = await readLoc(env);
+      const cur = await readLoc(env, locKey);
       cur.enabled = true;
       cur.latitude = la;
       cur.longitude = lo;
       setInt(cur, "altitude", url.searchParams.get("alt"));
       setInt(cur, "horizontalAccuracy", url.searchParams.get("hacc"));
       setInt(cur, "verticalAccuracy", url.searchParams.get("vacc"));
-      await writeLoc(env, cur);
+      await writeLoc(env, locKey, cur);
       const html =
         "<!doctype html><meta charset=utf-8>" +
         "<meta name=viewport content='width=device-width,initial-scale=1'>" +
@@ -204,14 +218,14 @@ export default {
           return jsonResponse({ error: "bad coords" }, 400);
         }
         const lo = wrapLng(loRaw);
-        const cur = await readLoc(env);
+        const cur = await readLoc(env, locKey);
         cur.enabled = true; // 保存一个新位置 = 开启伪造
         cur.latitude = la;
         cur.longitude = lo;
         setInt(cur, "altitude", j.altitude);
         setInt(cur, "horizontalAccuracy", j.horizontalAccuracy);
         setInt(cur, "verticalAccuracy", j.verticalAccuracy);
-        await writeLoc(env, cur);
+        await writeLoc(env, locKey, cur);
         return jsonResponse(cur);
       } catch {
         return jsonResponse({ error: "bad json" }, 400);
@@ -230,9 +244,9 @@ export default {
           return jsonResponse({ error: "payload too large" }, 413);
         }
         const j = JSON.parse(bodyText);
-        const cur = await readLoc(env);
+        const cur = await readLoc(env, locKey);
         cur.enabled = j.enabled !== false; // false=恢复真实定位（脚本放行）
-        await writeLoc(env, cur);
+        await writeLoc(env, locKey, cur);
         return jsonResponse(cur);
       } catch (error) {
         return jsonResponse({ error: "bad json" }, 400);
@@ -290,10 +304,12 @@ export default {
         return unauthorized();
       }
       const t = url.searchParams.get("token") || "";
+      const u = url.searchParams.get("u") || "";
+      const startUrl = "/?token=" + encodeURIComponent(t) + (u ? "&u=" + encodeURIComponent(u) : "");
       const manifest = {
         name: "定位選點",
         short_name: "定位選點",
-        start_url: "/?token=" + encodeURIComponent(t),
+        start_url: startUrl,
         scope: "/",
         display: "standalone",
         background_color: "#ffffff",

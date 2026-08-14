@@ -71,16 +71,30 @@ const DEFAULT = {
   verticalAccuracy: 1000
 };
 
-function readLoc() {
+// 多用户：URL 带 ?u=<名字> 时，定位存到独立文件（loc.<名字>.json），
+// 一个部署即可分享给多位朋友，各自的定位互不干扰。
+// 不带 u（或清洗后为空）时用默认的 DATA_FILE，与旧的单人用法完全兼容。
+// 名字只保留 a-z 0-9 _ - （小写），最长 32 字符，避免路径注入。
+function scopeFile(url) {
+  const raw = url.searchParams.get("u");
+  if (!raw) return DATA_FILE;
+  const safe = String(raw).toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+  if (!safe) return DATA_FILE;
+  const ext = path.extname(DATA_FILE) || ".json";
+  const base = path.basename(DATA_FILE, ext);
+  return path.join(path.dirname(DATA_FILE), base + "." + safe + ext);
+}
+
+function readLoc(file) {
   try {
-    return JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+    return JSON.parse(fs.readFileSync(file, "utf8"));
   } catch (e) {
     return Object.assign({}, DEFAULT);
   }
 }
 
-function writeLoc(obj) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2));
+function writeLoc(file, obj) {
+  fs.writeFileSync(file, JSON.stringify(obj, null, 2));
 }
 
 function send(res, code, type, body) {
@@ -108,11 +122,12 @@ function checkToken(token, res) {
 function handler(req, res) {
   const url = new URL(req.url, "http://" + (req.headers.host || "localhost"));
   const token = url.searchParams.get("token");
+  const file = scopeFile(url); // 多用户：?u=<名字> → 独立定位文件
 
   // ---- Shadowrocket 读取坐标（存的就是 WGS-84，Apple 需要的格式） ----
   if (url.pathname === "/loc.json" && req.method === "GET") {
     if (!checkToken(token, res)) return;
-    return send(res, 200, "application/json", JSON.stringify(readLoc()));
+    return send(res, 200, "application/json", JSON.stringify(readLoc(file)));
   }
 
   // ---- 用网址就能改定位（GET，方便加书签 / 主屏幕图标 / 极简捷径）：/set?token=..&lat=..&lng=.. ----
@@ -123,7 +138,7 @@ function handler(req, res) {
     if (!isFinite(la) || !isFinite(lo0) || la < -90 || la > 90 || lo0 < -180 || lo0 > 180) {
       return send(res, 400, "application/json", '{"error":"bad coords"}');
     }
-    const cur = readLoc();
+    const cur = readLoc(file);
     cur.enabled = true;
     cur.latitude = la;
     cur.longitude = lo0;
@@ -133,7 +148,7 @@ function handler(req, res) {
     setIntQ("altitude", url.searchParams.get("alt"));
     setIntQ("horizontalAccuracy", url.searchParams.get("hacc"));
     setIntQ("verticalAccuracy", url.searchParams.get("vacc"));
-    writeLoc(cur);
+    writeLoc(file, cur);
     const html = "<!doctype html><meta charset=utf-8>" +
       "<meta name=viewport content='width=device-width,initial-scale=1'>" +
       "<body style='margin:0;font-family:-apple-system,sans-serif;background:#111;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;text-align:center'>" +
@@ -162,7 +177,7 @@ function handler(req, res) {
         ) {
           return send(res, 400, "application/json", '{"error":"bad coords"}');
         }
-        const cur = readLoc();
+        const cur = readLoc(file);
         cur.enabled = true; // 保存一个新位置 = 开启伪造
         cur.latitude = la;
         cur.longitude = lo;
@@ -175,7 +190,7 @@ function handler(req, res) {
         setInt("altitude", j.altitude);
         setInt("horizontalAccuracy", j.horizontalAccuracy);
         setInt("verticalAccuracy", j.verticalAccuracy);
-        writeLoc(cur);
+        writeLoc(file, cur);
         return send(res, 200, "application/json", JSON.stringify(cur));
       } catch (e) {
         return send(res, 400, "application/json", '{"error":"bad json"}');
@@ -195,9 +210,9 @@ function handler(req, res) {
     req.on("end", function () {
       try {
         const j = JSON.parse(body);
-        const cur = readLoc();
+        const cur = readLoc(file);
         cur.enabled = j.enabled !== false; // false=恢复真实定位（脚本放行）
-        writeLoc(cur);
+        writeLoc(file, cur);
         return send(res, 200, "application/json", JSON.stringify(cur));
       } catch (e) {
         return send(res, 400, "application/json", '{"error":"bad json"}');
@@ -233,10 +248,12 @@ function handler(req, res) {
   // ---- PWA manifest（带 token；start_url 含 token 便于安装后直接打开） ----
   if (url.pathname === "/manifest.webmanifest" && req.method === "GET") {
     if (!checkToken(token, res)) return;
+    const u = url.searchParams.get("u") || "";
+    const startUrl = "/?token=" + encodeURIComponent(token || "") + (u ? "&u=" + encodeURIComponent(u) : "");
     const manifest = {
       name: "定位選點",
       short_name: "定位選點",
-      start_url: "/?token=" + encodeURIComponent(token || ""),
+      start_url: startUrl,
       scope: "/",
       display: "standalone",
       background_color: "#ffffff",
@@ -489,9 +506,12 @@ const PAGE = `<!doctype html>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script>
 var token = new URLSearchParams(location.search).get("token") || "";
+// 多用户：URL 带 ?u=<名字> 时，所有 API 请求都带上，读写各自独立的定位（分享给朋友用）。
+var scope = new URLSearchParams(location.search).get("u") || "";
+function apiUrl(path){return path+"?token="+encodeURIComponent(token)+(scope?"&u="+encodeURIComponent(scope):"");}
 
-// PWA manifest：动态注入（带 token，供 Android/桌面安装；iOS 靠 apple meta 也能加主屏幕）
-(function(){try{var l=document.createElement("link");l.rel="manifest";l.href="/manifest.webmanifest?token="+encodeURIComponent(token);document.head.appendChild(l);}catch(e){}})();
+// PWA manifest：动态注入（带 token + u，供 Android/桌面安装；iOS 靠 apple meta 也能加主屏幕）
+(function(){try{var l=document.createElement("link");l.rel="manifest";l.href=apiUrl("/manifest.webmanifest");document.head.appendChild(l);}catch(e){}})();
 
 // 深色模式：默认跟随系统；点按钮在 深/浅 间切换并记住（早期内联脚本已先应用，避免闪白）
 function currentTheme(){
@@ -680,7 +700,7 @@ function updateEnabledUI(){
 // 一键切换 伪造/恢复真实
 function toggleEnabled(){
   var want = !enabledState;
-  fetch("/enable?token="+encodeURIComponent(token),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled:want})})
+  fetch(apiUrl("/enable"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled:want})})
     .then(function(r){
       if(r.ok){ enabledState=want; updateEnabledUI();
         toast(want ? "已開啟偽造，記得關開定位生效" : "已恢復真實定位，記得關開定位生效"); }
@@ -713,7 +733,7 @@ function movePin(dispLat,dispLng){
 function commit(){
   var payload={lat:WGS.lat, lng:WGS.lng,
     altitude:numOrNull("alt"), horizontalAccuracy:numOrNull("hacc"), verticalAccuracy:numOrNull("vacc")};
-  fetch("/set?token="+encodeURIComponent(token),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
+  fetch(apiUrl("/set"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
     .then(function(r){ if(r.ok){ saved=true; enabledState=true; updateEnabledUI(); toast("已儲存 ✓ Loon/小火箭約 60 秒內生效"); } else { toast("儲存失敗 "+r.status); } })
     .catch(function(){ toast("網路錯誤"); });
 }
@@ -786,7 +806,7 @@ function search(){
 }
 
 function load(){
-  fetch("/loc.json?token="+encodeURIComponent(token)).then(function(r){return r.json();}).then(function(d){
+  fetch(apiUrl("/loc.json")).then(function(r){return r.json();}).then(function(d){
     WGS={lat:d.latitude, lng:d.longitude};
     saved=true;
     enabledState=(d.enabled!==false);
