@@ -189,9 +189,12 @@ export const PAGE = `<!doctype html>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script>
 var token = new URLSearchParams(location.search).get("token") || "";
+// 多用户：URL 带 ?u=<名字> 时，所有 API 请求都带上，读写各自独立的定位（分享给朋友用）。
+var scope = new URLSearchParams(location.search).get("u") || "";
+function apiUrl(path){return path+"?token="+encodeURIComponent(token)+(scope?"&u="+encodeURIComponent(scope):"");}
 
-// PWA manifest：动态注入（带 token，供 Android/桌面安装；iOS 靠 apple meta 也能加主屏幕）
-(function(){try{var l=document.createElement("link");l.rel="manifest";l.href="/manifest.webmanifest?token="+encodeURIComponent(token);document.head.appendChild(l);}catch(e){}})();
+// PWA manifest：动态注入（带 token + u，供 Android/桌面安装；iOS 靠 apple meta 也能加主屏幕）
+(function(){try{var l=document.createElement("link");l.rel="manifest";l.href=apiUrl("/manifest.webmanifest");document.head.appendChild(l);}catch(e){}})();
 
 // 深色模式：默认跟随系统；点按钮在 深/浅 间切换并记住（早期内联脚本已先应用，避免闪白）
 function currentTheme(){
@@ -380,7 +383,7 @@ function updateEnabledUI(){
 // 一键切换 伪造/恢复真实
 function toggleEnabled(){
   var want = !enabledState;
-  fetch("/enable?token="+encodeURIComponent(token),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled:want})})
+  fetch(apiUrl("/enable"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled:want})})
     .then(function(r){
       if(r.ok){ enabledState=want; updateEnabledUI();
         toast(want ? "已開啟偽造，記得關開定位生效" : "已恢復真實定位，記得關開定位生效"); }
@@ -413,7 +416,7 @@ function movePin(dispLat,dispLng){
 function commit(){
   var payload={lat:WGS.lat, lng:WGS.lng,
     altitude:numOrNull("alt"), horizontalAccuracy:numOrNull("hacc"), verticalAccuracy:numOrNull("vacc")};
-  fetch("/set?token="+encodeURIComponent(token),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
+  fetch(apiUrl("/set"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
     .then(function(r){ if(r.ok){ saved=true; enabledState=true; updateEnabledUI(); toast("已儲存 ✓ Loon/小火箭約 60 秒內生效"); } else { toast("儲存失敗 "+r.status); } })
     .catch(function(){ toast("網路錯誤"); });
 }
@@ -486,7 +489,7 @@ function search(){
 }
 
 function load(){
-  fetch("/loc.json?token="+encodeURIComponent(token)).then(function(r){return r.json();}).then(function(d){
+  fetch(apiUrl("/loc.json")).then(function(r){return r.json();}).then(function(d){
     WGS={lat:d.latitude, lng:d.longitude};
     saved=true;
     enabledState=(d.enabled!==false);
@@ -645,9 +648,22 @@ function checkToken(request, env) {
   return { ok: true };
 }
 
-async function readLoc(env) {
+// 多用户：URL 带 ?u=<名字> 时，定位存到独立的 KV 键（loc:<名字>），
+// 一个部署即可分享给多位朋友，各自的定位互不干扰。
+// 不带 u（或清洗后为空）时用默认键 "loc"，与旧的单人用法完全兼容。
+// 名字只保留 a-z 0-9 _ - （小写），最长 32 字符，避免污染 KV 键。
+function scopeKey(url) {
+  const raw = url.searchParams.get("u");
+  if (!raw) {
+    return KV_KEY;
+  }
+  const safe = String(raw).toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+  return safe ? KV_KEY + ":" + safe : KV_KEY;
+}
+
+async function readLoc(env, key) {
   try {
-    const raw = await env.LOC_KV.get(KV_KEY);
+    const raw = await env.LOC_KV.get(key);
     if (!raw) {
       return { ...DEFAULT };
     }
@@ -657,8 +673,8 @@ async function readLoc(env) {
   }
 }
 
-async function writeLoc(env, obj) {
-  await env.LOC_KV.put(KV_KEY, JSON.stringify(obj));
+async function writeLoc(env, key, obj) {
+  await env.LOC_KV.put(key, JSON.stringify(obj));
 }
 
 function setInt(target, key, value) {
@@ -679,12 +695,13 @@ export default {
 
     const url = new URL(request.url);
     const auth = checkToken(request, env);
+    const locKey = scopeKey(url); // 多用户：?u=<名字> → 独立定位
 
     if (url.pathname === "/loc.json" && request.method === "GET") {
       if (!auth.ok) {
         return unauthorized();
       }
-      const loc = await readLoc(env);
+      const loc = await readLoc(env, locKey);
       return jsonResponse(loc);
     }
 
@@ -700,14 +717,14 @@ export default {
         return jsonResponse({ error: "bad coords" }, 400);
       }
       const lo = wrapLng(loRaw);
-      const cur = await readLoc(env);
+      const cur = await readLoc(env, locKey);
       cur.enabled = true;
       cur.latitude = la;
       cur.longitude = lo;
       setInt(cur, "altitude", url.searchParams.get("alt"));
       setInt(cur, "horizontalAccuracy", url.searchParams.get("hacc"));
       setInt(cur, "verticalAccuracy", url.searchParams.get("vacc"));
-      await writeLoc(env, cur);
+      await writeLoc(env, locKey, cur);
       const html =
         "<!doctype html><meta charset=utf-8>" +
         "<meta name=viewport content='width=device-width,initial-scale=1'>" +
@@ -741,14 +758,14 @@ export default {
           return jsonResponse({ error: "bad coords" }, 400);
         }
         const lo = wrapLng(loRaw);
-        const cur = await readLoc(env);
+        const cur = await readLoc(env, locKey);
         cur.enabled = true; // 保存一个新位置 = 开启伪造
         cur.latitude = la;
         cur.longitude = lo;
         setInt(cur, "altitude", j.altitude);
         setInt(cur, "horizontalAccuracy", j.horizontalAccuracy);
         setInt(cur, "verticalAccuracy", j.verticalAccuracy);
-        await writeLoc(env, cur);
+        await writeLoc(env, locKey, cur);
         return jsonResponse(cur);
       } catch {
         return jsonResponse({ error: "bad json" }, 400);
@@ -767,9 +784,9 @@ export default {
           return jsonResponse({ error: "payload too large" }, 413);
         }
         const j = JSON.parse(bodyText);
-        const cur = await readLoc(env);
+        const cur = await readLoc(env, locKey);
         cur.enabled = j.enabled !== false; // false=恢复真实定位（脚本放行）
-        await writeLoc(env, cur);
+        await writeLoc(env, locKey, cur);
         return jsonResponse(cur);
       } catch (error) {
         return jsonResponse({ error: "bad json" }, 400);
@@ -827,10 +844,12 @@ export default {
         return unauthorized();
       }
       const t = url.searchParams.get("token") || "";
+      const u = url.searchParams.get("u") || "";
+      const startUrl = "/?token=" + encodeURIComponent(t) + (u ? "&u=" + encodeURIComponent(u) : "");
       const manifest = {
         name: "定位選點",
         short_name: "定位選點",
-        start_url: "/?token=" + encodeURIComponent(t),
+        start_url: startUrl,
         scope: "/",
         display: "standalone",
         background_color: "#ffffff",
