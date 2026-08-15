@@ -146,6 +146,18 @@ export const PAGE = `<!doctype html>
   .mirrorstate{padding:0 16px 14px;font-size:12.5px;color:var(--fg2)}
   .mirrorstate a{color:var(--accent);text-decoration:none;font-weight:600}
   .mirrorstate:empty{display:none}
+  .route .rtop{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:14px 16px 10px}
+  .route .rtop b{font-size:15px;font-weight:680}
+  .route .rtop span{font-size:12.5px;color:var(--fg2)}
+  .ractions{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px}
+  .rrow2{display:flex;align-items:center;gap:12px;padding:12px 16px;flex-wrap:wrap}
+  .rloop{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--fg2);font-weight:600}
+  .rloop input{width:17px;height:17px;accent-color:var(--accent)}
+  #routego{width:calc(100% - 32px);margin:0 16px 14px;border:0;border-radius:14px;padding:14px;font-size:16px;font-weight:700;color:#fff;cursor:pointer;background:linear-gradient(180deg,#3aa0ff,#0a6bff);box-shadow:0 5px 16px rgba(10,107,255,.35);transition:transform .12s}
+  #routego:active{transform:translateY(1px) scale(.99)}
+  .rstate{padding:0 16px 14px;font-size:13px;color:var(--go);font-weight:600;line-height:1.6}
+  .rstate a{color:var(--warn);text-decoration:none;font-weight:700}
+  .rstate:empty{display:none}
   /* Leaflet 控件配色贴合主题 */
   .leaflet-control-layers,.leaflet-bar a{background:var(--card)!important;color:var(--fg)!important;border-color:var(--line)!important}
   .leaflet-bar a{border-bottom-color:var(--line)!important}
@@ -216,6 +228,24 @@ export const PAGE = `<!doctype html>
     </div>
   </div>
   <div class="mirrorstate" id="mirrorstate"></div>
+</section>
+
+<section class="card route">
+  <div class="rtop"><b>🚶 路線移動</b><span id="routecount">尚未加入路線點</span></div>
+  <div class="ractions">
+    <button class="btn" id="routeadd">＋ 加入目前圖釘</button>
+    <button class="btn" id="routeclear">清除</button>
+  </div>
+  <div class="rrow2">
+    <div class="seg" id="routespeed">
+      <button type="button" data-s="1.4" class="on">🚶 走路</button>
+      <button type="button" data-s="5">🚲 騎車</button>
+      <button type="button" data-s="15">🚗 開車</button>
+    </div>
+    <label class="rloop"><input type="checkbox" id="routeloop"> 循環</label>
+  </div>
+  <button id="routego">▶ 開始移動</button>
+  <div class="rstate" id="routestate"></div>
 </section>
 
 <div class="pwahint">💡 想像 App 一樣用？在 Safari 點底部「分享」→「加入主畫面」，即可全螢幕獨立開啟。想「一鍵切換定位」，見倉庫「快捷指令一鍵改定位」教學，搭配 iOS 捷徑 + 背面輕點即可。</div>
@@ -459,6 +489,63 @@ function clearMirror(){
     .catch(function(){toast("設定失敗");});
 }
 
+// 🚶 路线移动：把「目前图钉」一个个加进路线，设速度后开始沿线移动
+var routePts=[]; // WGS [lat,lng]
+var routeLine=null;
+var routeSpeed=1.4;
+function toDisp(ll){return datum==="gcj"?GCJ.wgs2gcj(ll[0],ll[1]):[ll[0],ll[1]];}
+function drawRoute(){
+  if(!map)return;
+  if(routeLine){map.removeLayer(routeLine);routeLine=null;}
+  if(routePts.length>=2){routeLine=L.polyline(routePts.map(toDisp),{color:"#0a6bff",weight:4,opacity:.85,dashArray:"6,7"}).addTo(map);}
+  var c=$("routecount");
+  if(c)c.textContent=routePts.length?("已加入 "+routePts.length+" 點"):"尚未加入路線點";
+}
+function routeAdd(){
+  if(!Number.isFinite(WGS.lat)||!Number.isFinite(WGS.lng)){toast("目前座標無效");return;}
+  routePts.push([WGS.lat,WGS.lng]);
+  drawRoute();
+  toast("已加入第 "+routePts.length+" 點");
+}
+function routeClearFn(){
+  routePts=[];
+  drawRoute();
+  toast("已清除路線");
+}
+function routeSpeedUI(s){
+  var seg=$("routespeed");if(!seg)return;
+  var bs=seg.getElementsByTagName("button");
+  for(var i=0;i<bs.length;i++){bs[i].classList.toggle("on",Number(bs[i].getAttribute("data-s"))===Number(s));}
+}
+function routeStateUI(rec){
+  var s=$("routestate");if(!s)return;
+  if(rec&&rec.mode==="route"&&rec.route){
+    var kmh=Math.round((Number(rec.speed)||1.4)*3.6);
+    s.innerHTML="🟢 移動中 · "+rec.route.length+" 點 · "+kmh+" km/h"+(rec.loop?" · 循環":"")+" · <a href='#' id='routestop'>停止</a>";
+    var st=$("routestop");if(st)st.addEventListener("click",function(e){e.preventDefault();routeStop();});
+  }else{
+    s.innerHTML="";
+  }
+}
+function routeGo(){
+  if(routePts.length<2){toast("至少加入 2 個路線點");return;}
+  fetch(apiUrl("/route"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({route:routePts,speed:routeSpeed,loop:$("routeloop").checked})})
+    .then(function(r){return r.ok?r.json():Promise.reject(r.status);})
+    .then(function(d){routeStateUI(d);toast("🚶 開始移動！關開定位生效");})
+    .catch(function(){toast("設定失敗");});
+}
+function routeStop(){
+  fetch(apiUrl("/route"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stop:true})})
+    .then(function(r){return r.ok?r.json():Promise.reject(r.status);})
+    .then(function(d){
+      routeStateUI(d);
+      WGS={lat:d.latitude,lng:d.longitude};saved=true;
+      var p=dispPos();marker.setLatLng(p);map.setView(p,map.getZoom());info();
+      toast("已停止，停在目前位置");
+    })
+    .catch(function(){toast("停止失敗");});
+}
+
 function info(){
   var pill=$("coordpill");
   if(pill){
@@ -625,9 +712,19 @@ function load(){
     updateEnabledUI();
     setLocateBusy(false);
 
-    map.on("baselayerchange",function(e){datum=e.layer.datum||"wgs"; var p=dispPos(); marker.setLatLng(p); map.setView(p,map.getZoom()); info();});
+    map.on("baselayerchange",function(e){datum=e.layer.datum||"wgs"; var p=dispPos(); marker.setLatLng(p); map.setView(p,map.getZoom()); info(); drawRoute();});
     map.on("click",function(e){movePin(e.latlng.lat,e.latlng.lng);});
     marker.on("dragend",function(){var p=marker.getLatLng(); movePin(p.lat,p.lng);});
+
+    // 若正在路线移动，恢复路线显示与状态
+    if(d.mode==="route"&&Array.isArray(d.route)&&d.route.length){
+      routePts=d.route.map(function(p){return [Number(p[0]),Number(p[1])];});
+      routeSpeed=Number(d.speed)||1.4;
+      if($("routeloop"))$("routeloop").checked=!!d.loop;
+      routeSpeedUI(routeSpeed);
+      drawRoute();
+    }
+    routeStateUI(d);
   }).catch(function(){$("info").textContent="載入失敗，請檢查 token 是否正確";});
 }
 
@@ -641,6 +738,10 @@ $("randombtn").addEventListener("click",teleport);
 $("mirrorbtn").addEventListener("click",applyMirror);
 $("mirroru").addEventListener("keydown",function(e){if(e.key==="Enter")applyMirror();});
 (function(){var seg=$("jitterseg");if(!seg)return;var bs=seg.getElementsByTagName("button");for(var i=0;i<bs.length;i++){(function(b){b.addEventListener("click",function(){setJitter(Number(b.getAttribute("data-m")));});})(bs[i]);}})();
+$("routeadd").addEventListener("click",routeAdd);
+$("routeclear").addEventListener("click",routeClearFn);
+$("routego").addEventListener("click",routeGo);
+(function(){var seg=$("routespeed");if(!seg)return;var bs=seg.getElementsByTagName("button");for(var i=0;i<bs.length;i++){(function(b){b.addEventListener("click",function(){routeSpeed=Number(b.getAttribute("data-s"));routeSpeedUI(routeSpeed);});})(bs[i]);}})();
 $("themebtn").addEventListener("click",toggleTheme);
 $("statuspill").addEventListener("click",toggleEnabled);
 updateThemeBtn();
