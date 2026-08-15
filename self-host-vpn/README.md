@@ -72,9 +72,10 @@ DNS 解到「真 Apple」，不會繞回來。全通道路由（catch 得到 gs-
 ```bash
 # 0) 先把 DNS 指好：fly.chung.men 的 A 記錄 → 這台 VPS 公網 IP
 
-# 1) 拿到程式碼並安裝（一行）
+# 1) 拿到程式碼並安裝
 git clone https://github.com/chung223/ios-location-spoofer
 cd ios-location-spoofer
+git checkout claude/surge-deployment-setup-7bbwy2   # self-host-vpn/ 目前在這個分支
 sudo bash self-host-vpn/setup.sh          # 每步都會 echo；出錯把畫面貼回來
 
 # 2) 開通一個朋友（產生 .mobileconfig）
