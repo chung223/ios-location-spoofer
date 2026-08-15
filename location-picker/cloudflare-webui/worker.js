@@ -132,6 +132,23 @@ export const PAGE = `<!doctype html>
   .foot a{color:var(--accent);text-decoration:none}
   .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:rgba(20,20,24,.92);color:#fff;padding:11px 18px;border-radius:12px;font-size:14px;font-weight:560;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.35)}
   .toast.show{opacity:1}
+  .play{padding:2px 0}
+  .playrow{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .playrow:last-of-type{border-bottom:0}
+  .playlbl{flex:1;min-width:120px}
+  .playlbl b{font-size:14.5px;font-weight:660}
+  .playlbl span{display:block;font-size:12px;color:var(--fg2);margin-top:2px}
+  .seg{display:flex;gap:4px;background:var(--card2);border-radius:10px;padding:3px;flex:none}
+  .seg button{border:0;background:none;color:var(--fg2);font-size:13px;font-weight:600;padding:6px 10px;border-radius:8px;cursor:pointer;transition:transform .1s}
+  .seg button:active{transform:scale(.94)}
+  .seg button.on{background:var(--card);color:var(--accent);box-shadow:var(--sh-sm)}
+  .mirrorctl{display:flex;gap:6px;flex:none}
+  .mirrorctl input{width:118px;border:1px solid var(--line);border-radius:10px;background:var(--card2);color:var(--fg);padding:9px 10px;font-size:14px;outline:none}
+  .mirrorctl input:focus{border-color:var(--accent);background:var(--card)}
+  .mirrorctl button{border:0;border-radius:10px;padding:9px 14px;font-size:13.5px;font-weight:640;background:var(--accent-soft);color:var(--accent);cursor:pointer}
+  .mirrorstate{padding:0 16px 14px;font-size:12.5px;color:var(--fg2)}
+  .mirrorstate a{color:var(--accent);text-decoration:none;font-weight:600}
+  .mirrorstate:empty{display:none}
   /* Leaflet 控件配色贴合主题 */
   .leaflet-control-layers,.leaflet-bar a{background:var(--card)!important;color:var(--fg)!important;border-color:var(--line)!important}
   .leaflet-bar a{border-bottom-color:var(--line)!important}
@@ -180,8 +197,29 @@ export const PAGE = `<!doctype html>
   <button class="btn full" id="restorebtn">恢復真實定位</button>
   <button class="btn" id="favadd">☆ 收藏此點</button>
   <button class="btn" id="favlistbtn">我的收藏</button>
+  <button class="btn full" id="randombtn">🎲 隨機傳送</button>
 </div>
 <div class="results" id="favs"></div>
+
+<section class="card play">
+  <div class="playrow">
+    <div class="playlbl"><b>微抖動</b><span>讓定位像真手機輕微漂移，反「定死在原地」</span></div>
+    <div class="seg" id="jitterseg">
+      <button type="button" data-m="0" class="on">關</button>
+      <button type="button" data-m="5">5m</button>
+      <button type="button" data-m="15">15m</button>
+      <button type="button" data-m="50">50m</button>
+    </div>
+  </div>
+  <div class="playrow">
+    <div class="playlbl"><b>跟隨朋友</b><span>你的定位＝某個 u 的定位（互相同步）</span></div>
+    <div class="mirrorctl">
+      <input id="mirroru" placeholder="對方 u 代號" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button type="button" id="mirrorbtn">跟隨</button>
+    </div>
+  </div>
+  <div class="mirrorstate" id="mirrorstate"></div>
+</section>
 
 <div class="pwahint">💡 想像 App 一樣用？在 Safari 點底部「分享」→「加入主畫面」，即可全螢幕獨立開啟。想「一鍵切換定位」，見倉庫「快捷指令一鍵改定位」教學，搭配 iOS 捷徑 + 背面輕點即可。</div>
 <div class="foot">本工具基於 <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener noreferrer">AGPL-3.0</a> 開源 · <a href="https://github.com/chung223/ios-location-spoofer" target="_blank" rel="noopener noreferrer">原始碼</a></div>
@@ -355,6 +393,75 @@ function toggleFavs(){
   renderFavs();
 }
 
+// 🎲 随机传送：内建一批地标，随机跳一个（仍需按储存）
+var PLACES=[
+  {name:"艾菲爾鐵塔",lat:48.8584,lng:2.2945},
+  {name:"紐約自由女神",lat:40.6892,lng:-74.0445},
+  {name:"東京鐵塔",lat:35.6586,lng:139.7454},
+  {name:"雪梨歌劇院",lat:-33.8568,lng:151.2153},
+  {name:"倫敦大笨鐘",lat:51.5007,lng:-0.1246},
+  {name:"吉薩金字塔",lat:29.9792,lng:31.1342},
+  {name:"泰姬瑪哈陵",lat:27.1751,lng:78.0421},
+  {name:"羅馬競技場",lat:41.8902,lng:12.4922},
+  {name:"新加坡魚尾獅",lat:1.2868,lng:103.8545},
+  {name:"首爾南山塔",lat:37.5512,lng:126.9882},
+  {name:"台北101",lat:25.0339,lng:121.5645},
+  {name:"舊金山金門大橋",lat:37.8199,lng:-122.4783},
+  {name:"杜拜哈里發塔",lat:25.1972,lng:55.2744},
+  {name:"里約基督像",lat:-22.9519,lng:-43.2105},
+  {name:"香港維多利亞港",lat:22.2940,lng:114.1722}
+];
+function teleport(){
+  var p=PLACES[Math.floor(Math.random()*PLACES.length)];
+  WGS={lat:p.lat,lng:p.lng};
+  saved=false;
+  var d=dispPos();
+  marker.setLatLng(d);
+  map.setView(d,13);
+  info();
+  fetchElevation(WGS.lat,WGS.lng).then(function(el){if(el!==null)$("alt").value=Math.round(el);info();});
+  toast("🎲 "+p.name+"，確認後儲存");
+}
+
+// ✨ 微抖动：让定位轻微随机漂移
+function jitterUI(m){
+  var seg=$("jitterseg"); if(!seg)return;
+  var bs=seg.getElementsByTagName("button");
+  for(var i=0;i<bs.length;i++){bs[i].classList.toggle("on",Number(bs[i].getAttribute("data-m"))===Number(m||0));}
+}
+function setJitter(m){
+  fetch(apiUrl("/jitter"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({meters:m})})
+    .then(function(r){return r.ok?r.json():Promise.reject(r.status);})
+    .then(function(){jitterUI(m);toast(m>0?("抖動 ±"+m+"m 已開，關開定位生效"):"抖動已關");})
+    .catch(function(){toast("設定失敗");});
+}
+
+// 👥 跟随朋友：本账号定位镜像另一个 u
+function mirrorUI(name){
+  var s=$("mirrorstate"); if(!s)return;
+  if(name){
+    s.innerHTML="正在跟隨 <b>"+name+"</b> · <a href='#' id='mirrorclear'>取消跟隨</a>";
+    var c=$("mirrorclear");
+    if(c)c.addEventListener("click",function(e){e.preventDefault();clearMirror();});
+  }else{
+    s.innerHTML="";
+  }
+}
+function applyMirror(){
+  var name=$("mirroru").value.trim();
+  if(!name){toast("先填對方的 u 代號");return;}
+  fetch(apiUrl("/mirror"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({u:name})})
+    .then(function(r){return r.ok?r.json():Promise.reject(r.status);})
+    .then(function(d){mirrorUI(d.mirror||"");toast(d.mirror?("已跟隨 "+d.mirror+"，關開定位生效"):"名稱無效");})
+    .catch(function(){toast("設定失敗");});
+}
+function clearMirror(){
+  fetch(apiUrl("/mirror"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({clear:true})})
+    .then(function(r){return r.ok?r.json():Promise.reject(r.status);})
+    .then(function(){mirrorUI("");$("mirroru").value="";toast("已取消跟隨");})
+    .catch(function(){toast("設定失敗");});
+}
+
 function info(){
   var pill=$("coordpill");
   if(pill){
@@ -489,13 +596,15 @@ function search(){
 }
 
 function load(){
-  fetch(apiUrl("/loc.json")).then(function(r){return r.json();}).then(function(d){
+  fetch(apiUrl("/loc.json")+"&raw=1").then(function(r){return r.json();}).then(function(d){
     WGS={lat:d.latitude, lng:d.longitude};
     saved=true;
     enabledState=(d.enabled!==false);
     $("alt").value=(d.altitude!==undefined?d.altitude:"");
     $("hacc").value=(d.horizontalAccuracy!==undefined?d.horizontalAccuracy:39);
     $("vacc").value=(d.verticalAccuracy!==undefined?d.verticalAccuracy:1000);
+    jitterUI(d.jitter||0);
+    mirrorUI(d.mirror||"");
 
     // 台湾/国际用 WGS-84 地图（预设）；高德为中国大陆 GCJ-02，偏移已自动处理
     var osm=L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"});
@@ -531,6 +640,10 @@ $("savebtn").addEventListener("click",commit);
 $("restorebtn").addEventListener("click",toggleEnabled);
 $("favadd").addEventListener("click",addFavorite);
 $("favlistbtn").addEventListener("click",toggleFavs);
+$("randombtn").addEventListener("click",teleport);
+$("mirrorbtn").addEventListener("click",applyMirror);
+$("mirroru").addEventListener("keydown",function(e){if(e.key==="Enter")applyMirror();});
+(function(){var seg=$("jitterseg");if(!seg)return;var bs=seg.getElementsByTagName("button");for(var i=0;i<bs.length;i++){(function(b){b.addEventListener("click",function(){setJitter(Number(b.getAttribute("data-m")));});})(bs[i]);}})();
 $("themebtn").addEventListener("click",toggleTheme);
 $("statuspill").addEventListener("click",toggleEnabled);
 updateThemeBtn();
@@ -652,13 +765,15 @@ function checkToken(request, env) {
 // 一个部署即可分享给多位朋友，各自的定位互不干扰。
 // 不带 u（或清洗后为空）时用默认键 "loc"，与旧的单人用法完全兼容。
 // 名字只保留 a-z 0-9 _ - （小写），最长 32 字符，避免污染 KV 键。
-function scopeKey(url) {
-  const raw = url.searchParams.get("u");
-  if (!raw) {
-    return KV_KEY;
-  }
-  const safe = String(raw).toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+function cleanName(raw) {
+  return String(raw == null ? "" : raw).toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+}
+function keyForName(name) {
+  const safe = cleanName(name);
   return safe ? KV_KEY + ":" + safe : KV_KEY;
+}
+function scopeKey(url) {
+  return keyForName(url.searchParams.get("u"));
 }
 
 async function readLoc(env, key) {
@@ -675,6 +790,43 @@ async function readLoc(env, key) {
 
 async function writeLoc(env, key, obj) {
   await env.LOC_KV.put(key, JSON.stringify(obj));
+}
+
+// 微抖动：在半径 meters 内加一个随机偏移，让定位像真手机一样轻微漂移（反“定死在原地”露馅）。
+// 均匀撒在圆面内（sqrt 让分布不偏心）。
+function applyJitter(lat, lng, meters) {
+  const m = Number(meters);
+  if (!Number.isFinite(m) || m <= 0) {
+    return { lat, lng };
+  }
+  const ang = Math.random() * 2 * Math.PI;
+  const r = Math.sqrt(Math.random()) * m;
+  const dLat = (r * Math.cos(ang)) / 111320;
+  const cosLat = Math.cos((lat * Math.PI) / 180);
+  const dLng = (r * Math.sin(ang)) / (111320 * (Math.abs(cosLat) < 1e-6 ? 1e-6 : cosLat));
+  return { lat: lat + dLat, lng: wrapLng(lng + dLng) };
+}
+
+// 计算“真正要回给 iPhone 的坐标”：先处理跟随（镜像另一个用户，只跟一层避免环），
+// 再套用微抖动。raw=1 时跳过，用于选点页显示“存下来的锚点”本身。
+async function resolveLoc(env, base) {
+  let eff = base;
+  if (base && base.mirror) {
+    const target = await readLoc(env, keyForName(base.mirror));
+    eff = {
+      ...base,
+      latitude: target.latitude,
+      longitude: target.longitude,
+      altitude: target.altitude,
+      horizontalAccuracy: target.horizontalAccuracy,
+      verticalAccuracy: target.verticalAccuracy,
+    };
+  }
+  if (eff && eff.jitter) {
+    const j = applyJitter(Number(eff.latitude), Number(eff.longitude), eff.jitter);
+    eff = { ...eff, latitude: j.lat, longitude: j.lng };
+  }
+  return eff;
 }
 
 function setInt(target, key, value) {
@@ -701,7 +853,10 @@ export default {
       if (!auth.ok) {
         return unauthorized();
       }
-      const loc = await readLoc(env, locKey);
+      const base = await readLoc(env, locKey);
+      // raw=1：返回存下来的锚点本身（选点页用），不做跟随/抖动。
+      // 否则：脚本读到的是“解析后”的坐标（含跟随 + 微抖动）。
+      const loc = url.searchParams.get("raw") ? base : await resolveLoc(env, base);
       return jsonResponse(loc);
     }
 
@@ -721,6 +876,7 @@ export default {
       cur.enabled = true;
       cur.latitude = la;
       cur.longitude = lo;
+      delete cur.mirror; // 手动选点 = 取消跟随朋友
       setInt(cur, "altitude", url.searchParams.get("alt"));
       setInt(cur, "horizontalAccuracy", url.searchParams.get("hacc"));
       setInt(cur, "verticalAccuracy", url.searchParams.get("vacc"));
@@ -762,6 +918,7 @@ export default {
         cur.enabled = true; // 保存一个新位置 = 开启伪造
         cur.latitude = la;
         cur.longitude = lo;
+        delete cur.mirror; // 手动选点 = 取消跟随朋友
         setInt(cur, "altitude", j.altitude);
         setInt(cur, "horizontalAccuracy", j.horizontalAccuracy);
         setInt(cur, "verticalAccuracy", j.verticalAccuracy);
@@ -789,6 +946,53 @@ export default {
         await writeLoc(env, locKey, cur);
         return jsonResponse(cur);
       } catch (error) {
+        return jsonResponse({ error: "bad json" }, 400);
+      }
+    }
+
+    // ---- 微抖动：让定位轻微随机漂移，像真手机（meters=0 关闭，最大 500） ----
+    if (url.pathname === "/jitter" && request.method === "POST") {
+      if (!auth.ok) {
+        return unauthorized();
+      }
+      try {
+        const bodyText = await request.text();
+        if (bodyText.length > 10000) {
+          return jsonResponse({ error: "payload too large" }, 413);
+        }
+        const j = JSON.parse(bodyText);
+        let m = Math.round(Number(j.meters));
+        if (!Number.isFinite(m) || m < 0) m = 0;
+        if (m > 500) m = 500;
+        const cur = await readLoc(env, locKey);
+        if (m > 0) cur.jitter = m;
+        else delete cur.jitter;
+        await writeLoc(env, locKey, cur);
+        return jsonResponse(cur);
+      } catch {
+        return jsonResponse({ error: "bad json" }, 400);
+      }
+    }
+
+    // ---- 跟随朋友：本账号定位镜像另一个 u=<名字>（{clear:true} 取消） ----
+    if (url.pathname === "/mirror" && request.method === "POST") {
+      if (!auth.ok) {
+        return unauthorized();
+      }
+      try {
+        const bodyText = await request.text();
+        if (bodyText.length > 10000) {
+          return jsonResponse({ error: "payload too large" }, 413);
+        }
+        const j = JSON.parse(bodyText);
+        const cur = await readLoc(env, locKey);
+        const name = cleanName(j.u);
+        if (j.clear || !name) delete cur.mirror;
+        else cur.mirror = name;
+        cur.enabled = true;
+        await writeLoc(env, locKey, cur);
+        return jsonResponse(cur);
+      } catch {
         return jsonResponse({ error: "bad json" }, 400);
       }
     }

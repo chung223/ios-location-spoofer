@@ -112,13 +112,15 @@ function checkToken(request, env) {
 // 一个部署即可分享给多位朋友，各自的定位互不干扰。
 // 不带 u（或清洗后为空）时用默认键 "loc"，与旧的单人用法完全兼容。
 // 名字只保留 a-z 0-9 _ - （小写），最长 32 字符，避免污染 KV 键。
-function scopeKey(url) {
-  const raw = url.searchParams.get("u");
-  if (!raw) {
-    return KV_KEY;
-  }
-  const safe = String(raw).toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+function cleanName(raw) {
+  return String(raw == null ? "" : raw).toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32);
+}
+function keyForName(name) {
+  const safe = cleanName(name);
   return safe ? KV_KEY + ":" + safe : KV_KEY;
+}
+function scopeKey(url) {
+  return keyForName(url.searchParams.get("u"));
 }
 
 async function readLoc(env, key) {
@@ -135,6 +137,43 @@ async function readLoc(env, key) {
 
 async function writeLoc(env, key, obj) {
   await env.LOC_KV.put(key, JSON.stringify(obj));
+}
+
+// 微抖动：在半径 meters 内加一个随机偏移，让定位像真手机一样轻微漂移（反“定死在原地”露馅）。
+// 均匀撒在圆面内（sqrt 让分布不偏心）。
+function applyJitter(lat, lng, meters) {
+  const m = Number(meters);
+  if (!Number.isFinite(m) || m <= 0) {
+    return { lat, lng };
+  }
+  const ang = Math.random() * 2 * Math.PI;
+  const r = Math.sqrt(Math.random()) * m;
+  const dLat = (r * Math.cos(ang)) / 111320;
+  const cosLat = Math.cos((lat * Math.PI) / 180);
+  const dLng = (r * Math.sin(ang)) / (111320 * (Math.abs(cosLat) < 1e-6 ? 1e-6 : cosLat));
+  return { lat: lat + dLat, lng: wrapLng(lng + dLng) };
+}
+
+// 计算“真正要回给 iPhone 的坐标”：先处理跟随（镜像另一个用户，只跟一层避免环），
+// 再套用微抖动。raw=1 时跳过，用于选点页显示“存下来的锚点”本身。
+async function resolveLoc(env, base) {
+  let eff = base;
+  if (base && base.mirror) {
+    const target = await readLoc(env, keyForName(base.mirror));
+    eff = {
+      ...base,
+      latitude: target.latitude,
+      longitude: target.longitude,
+      altitude: target.altitude,
+      horizontalAccuracy: target.horizontalAccuracy,
+      verticalAccuracy: target.verticalAccuracy,
+    };
+  }
+  if (eff && eff.jitter) {
+    const j = applyJitter(Number(eff.latitude), Number(eff.longitude), eff.jitter);
+    eff = { ...eff, latitude: j.lat, longitude: j.lng };
+  }
+  return eff;
 }
 
 function setInt(target, key, value) {
@@ -161,7 +200,10 @@ export default {
       if (!auth.ok) {
         return unauthorized();
       }
-      const loc = await readLoc(env, locKey);
+      const base = await readLoc(env, locKey);
+      // raw=1：返回存下来的锚点本身（选点页用），不做跟随/抖动。
+      // 否则：脚本读到的是“解析后”的坐标（含跟随 + 微抖动）。
+      const loc = url.searchParams.get("raw") ? base : await resolveLoc(env, base);
       return jsonResponse(loc);
     }
 
@@ -181,6 +223,7 @@ export default {
       cur.enabled = true;
       cur.latitude = la;
       cur.longitude = lo;
+      delete cur.mirror; // 手动选点 = 取消跟随朋友
       setInt(cur, "altitude", url.searchParams.get("alt"));
       setInt(cur, "horizontalAccuracy", url.searchParams.get("hacc"));
       setInt(cur, "verticalAccuracy", url.searchParams.get("vacc"));
@@ -222,6 +265,7 @@ export default {
         cur.enabled = true; // 保存一个新位置 = 开启伪造
         cur.latitude = la;
         cur.longitude = lo;
+        delete cur.mirror; // 手动选点 = 取消跟随朋友
         setInt(cur, "altitude", j.altitude);
         setInt(cur, "horizontalAccuracy", j.horizontalAccuracy);
         setInt(cur, "verticalAccuracy", j.verticalAccuracy);
@@ -249,6 +293,53 @@ export default {
         await writeLoc(env, locKey, cur);
         return jsonResponse(cur);
       } catch (error) {
+        return jsonResponse({ error: "bad json" }, 400);
+      }
+    }
+
+    // ---- 微抖动：让定位轻微随机漂移，像真手机（meters=0 关闭，最大 500） ----
+    if (url.pathname === "/jitter" && request.method === "POST") {
+      if (!auth.ok) {
+        return unauthorized();
+      }
+      try {
+        const bodyText = await request.text();
+        if (bodyText.length > 10000) {
+          return jsonResponse({ error: "payload too large" }, 413);
+        }
+        const j = JSON.parse(bodyText);
+        let m = Math.round(Number(j.meters));
+        if (!Number.isFinite(m) || m < 0) m = 0;
+        if (m > 500) m = 500;
+        const cur = await readLoc(env, locKey);
+        if (m > 0) cur.jitter = m;
+        else delete cur.jitter;
+        await writeLoc(env, locKey, cur);
+        return jsonResponse(cur);
+      } catch {
+        return jsonResponse({ error: "bad json" }, 400);
+      }
+    }
+
+    // ---- 跟随朋友：本账号定位镜像另一个 u=<名字>（{clear:true} 取消） ----
+    if (url.pathname === "/mirror" && request.method === "POST") {
+      if (!auth.ok) {
+        return unauthorized();
+      }
+      try {
+        const bodyText = await request.text();
+        if (bodyText.length > 10000) {
+          return jsonResponse({ error: "payload too large" }, 413);
+        }
+        const j = JSON.parse(bodyText);
+        const cur = await readLoc(env, locKey);
+        const name = cleanName(j.u);
+        if (j.clear || !name) delete cur.mirror;
+        else cur.mirror = name;
+        cur.enabled = true;
+        await writeLoc(env, locKey, cur);
+        return jsonResponse(cur);
+      } catch {
         return jsonResponse({ error: "bad json" }, 400);
       }
     }
