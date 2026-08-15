@@ -49,11 +49,57 @@
 
 - [x] `mitm/wloc-rewrite.mjs` — gs-loc 改寫核心（沿用 `location-spoofer.js` 的 ARPC/protobuf 邏輯，抽成可重用模組）＋自測（6 項合成封包測試全綠，含真實前綴 0001000000030000 / ARPC / 多 Wi-Fi / 負座標）
 - [x] `mitm/proxy.mjs` — 透明 TLS MITM：攔 gs-loc、改寫、來源 IP→`u`、走 localhost 讀 picker（決策抽成純函式 `proxyDecide`，7 項 stub 端到端測試全綠：改寫 / 放行 / fail-open / 剝壓縮標頭）
-- [ ] `bin/setup.sh` — OL9 一鍵安裝:dnf 依賴、Node、strongSwan、nftables 轉址、sysctl 轉發、SELinux、certbot
-- [ ] `bin/add-friend.sh` / `bin/revoke-friend.sh` — 手動發卡 / 踢人
-- [ ] `portal/` — 邀請碼自助發卡頁 + `.mobileconfig` 產生器（憑證 payload + IKEv2 payload）
-- [ ] `systemd/*.service` — picker / mitm / portal 常駐
-- [ ] 把你自己的 Surge `configUrl` 改指到 `https://fly.chung.men/loc.json?token=...&u=你`
+- [x] `portal/mobileconfig.mjs` — iOS 原生 IKEv2 描述檔（VPN + CA 憑證 payload）產生器（5 測全綠）
+- [x] `portal/provision.mjs` — 開卡/撤銷邏輯（swanctl 設定 + 固定IP + peers + mobileconfig，5 測全綠）
+- [x] `portal/server.mjs` — 邀請碼自助發卡頁（邀請碼邏輯 4 測全綠）
+- [x] `bin/*.sh` + `bin/*-cli.mjs` — add-friend / revoke-friend / new-invite / list-friends
+- [x] `setup.sh` — OL9 一鍵安裝（dnf 依賴、Node、strongSwan(IKEv2)、dnsmasq(gs-loc 導流)、
+      nftables 轉址、firewalld、Caddy 自動 HTTPS、CA+葉憑證、systemd）**（首版，上機必調）**
+- [ ] （你）把 Surge `configUrl` 改指到 `https://fly.chung.men/loc.json?token=...&u=你`
+
+> 可測的軟體核心共 **27 測全綠**（改寫6 + proxy7 + mobileconfig5 + 開卡5 + 邀請4）。
+> `setup.sh` 與 strongSwan/dnsmasq/nftables 這層無法在開發機驗證，是上機起點。
+
+## 導流方式（實作細節）
+
+改用 **DNS 覆寫**（比追 Apple IP 段穩）：dnsmasq 只在 VPN 閘道 IP 上，把
+`gs-loc.apple.com` / `gs-loc-cn.apple.com` 解到閘道 IP；nftables 再把「到閘道 IP:443」
+的封包 redirect 進本機 MITM proxy（其餘流量照常 NAT 出去）。MITM 上游用本機自己的
+DNS 解到「真 Apple」，不會繞回來。全通道路由（catch 得到 gs-loc），朋友其他流量只轉不解。
+
+## 上機 runbook（你 SSH 進 VPS 跑）
+
+```bash
+# 0) 先把 DNS 指好：fly.chung.men 的 A 記錄 → 這台 VPS 公網 IP
+
+# 1) 拿到程式碼並安裝（一行）
+git clone https://github.com/chung223/ios-location-spoofer
+cd ios-location-spoofer
+sudo bash self-host-vpn/setup.sh          # 每步都會 echo；出錯把畫面貼回來
+
+# 2) 開通一個朋友（產生 .mobileconfig）
+sudo self-host-vpn/bin/add-friend.sh alice
+#   或給朋友自助邀請連結（7 天有效、一次性）：
+sudo self-host-vpn/bin/new-invite.sh 7
+
+# 3) 檢查 / 看日誌
+systemctl status location-picker location-mitm location-portal caddy strongswan
+journalctl -u location-mitm -f
+sudo self-host-vpn/bin/list-friends.sh
+sudo self-host-vpn/bin/revoke-friend.sh alice   # 踢人
+```
+
+朋友端：打開描述檔連結（或收到的 `.mobileconfig`）→ 安裝 → **設定→一般→關於本機→
+憑證信任設定** 開啟「定位服務 CA」完全信任 → 連 VPN → 開選點網頁選點 → 關開一次定位服務。
+
+## 首次上機最可能要調的點（心裡有數）
+
+1. **IKEv2 EAP 描述檔**：`AuthenticationMethod=None` + `ExtendedAuthEnabled` 這組在你的
+   iOS 版本上連不連得起來，可能要微調（憑證式 vs EAP）。先看 `journalctl -u strongswan`。
+2. **憑證信任**：CA 沒「完全信任」→ VPN 連不上 / MITM 解不開（跟 Surge 同一個坑）。
+3. **firewalld vs nftables** 共存：若導流沒生效，檢查 `nft list table ip locmitm` 有沒有在。
+4. **Caddy 憑證**：DNS 沒指好 / 80 埠沒通 → Let's Encrypt 發不出來。
+5. **SELinux**：若 node 服務起不來，`journalctl` 看有沒有 AVC；必要時 `semanage`/暫時 permissive 測。
 
 ## 朋友的體驗（最終）
 
