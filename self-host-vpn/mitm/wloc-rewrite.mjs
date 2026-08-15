@@ -362,17 +362,25 @@ export function extractAppleWLocPayload(responseBytes) {
 }
 
 export function normalizeConfig(input) {
-  const cfg = Object.assign({}, DEFAULTS, input || {});
-  cfg.latitude = Number(cfg.latitude);
-  cfg.longitude = Number(cfg.longitude);
-  cfg.horizontalAccuracy = Math.trunc(Number(cfg.horizontalAccuracy));
-  cfg.verticalAccuracy = Math.trunc(Number(cfg.verticalAccuracy));
-  cfg.altitude = Math.trunc(Number(cfg.altitude));
-  cfg.unknownValue4 = Math.trunc(Number(cfg.unknownValue4));
-  cfg.motionActivityType = Math.trunc(Number(cfg.motionActivityType));
-  cfg.motionActivityConfidence = Math.trunc(Number(cfg.motionActivityConfidence));
+  const src = input || {};
+  // 缺值 / undefined / "" 一律回退預設（不能用 Object.assign：undefined 會蓋掉預設 → NaN → BigInt 爆炸）
+  const pick = (k) => (src[k] === undefined || src[k] === null || src[k] === "" ? DEFAULTS[k] : src[k]);
+  const cfg = {
+    latitude: Number(pick("latitude")),
+    longitude: Number(pick("longitude")),
+    horizontalAccuracy: Math.trunc(Number(pick("horizontalAccuracy"))),
+    verticalAccuracy: Math.trunc(Number(pick("verticalAccuracy"))),
+    altitude: Math.trunc(Number(pick("altitude"))),
+    unknownValue4: Math.trunc(Number(pick("unknownValue4"))),
+    motionActivityType: Math.trunc(Number(pick("motionActivityType"))),
+    motionActivityConfidence: Math.trunc(Number(pick("motionActivityConfidence"))),
+  };
   if (!Number.isFinite(cfg.latitude) || cfg.latitude < -90 || cfg.latitude > 90) throw new Error("invalid latitude");
   if (!Number.isFinite(cfg.longitude) || cfg.longitude < -180 || cfg.longitude > 180) throw new Error("invalid longitude");
+  // 精度/海拔若仍非有限值，回退預設，避免 BigInt(NaN) 爆掉
+  for (const k of ["horizontalAccuracy", "verticalAccuracy", "altitude", "unknownValue4", "motionActivityType", "motionActivityConfidence"]) {
+    if (!Number.isFinite(cfg[k])) cfg[k] = DEFAULTS[k];
+  }
   return cfg;
 }
 

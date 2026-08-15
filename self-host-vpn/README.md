@@ -48,7 +48,7 @@
 ## 元件與建置順序（逐塊落地、能測則測）
 
 - [x] `mitm/wloc-rewrite.mjs` — gs-loc 改寫核心（沿用 `location-spoofer.js` 的 ARPC/protobuf 邏輯，抽成可重用模組）＋自測（6 項合成封包測試全綠，含真實前綴 0001000000030000 / ARPC / 多 Wi-Fi / 負座標）
-- [ ] `mitm/proxy.mjs` — 透明 TLS MITM：攔 gs-loc、改寫、來源 IP→`u`、走 localhost 讀 picker
+- [x] `mitm/proxy.mjs` — 透明 TLS MITM：攔 gs-loc、改寫、來源 IP→`u`、走 localhost 讀 picker（決策抽成純函式 `proxyDecide`，7 項 stub 端到端測試全綠：改寫 / 放行 / fail-open / 剝壓縮標頭）
 - [ ] `bin/setup.sh` — OL9 一鍵安裝:dnf 依賴、Node、strongSwan、nftables 轉址、sysctl 轉發、SELinux、certbot
 - [ ] `bin/add-friend.sh` / `bin/revoke-friend.sh` — 手動發卡 / 踢人
 - [ ] `portal/` — 邀請碼自助發卡頁 + `.mobileconfig` 產生器（憑證 payload + IKEv2 payload）
