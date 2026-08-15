@@ -113,22 +113,68 @@ function applyJitter(lat, lng, meters) {
   return { lat: lat + dLat, lng: lng + dLng };
 }
 
-// 解析“真正回给 iPhone 的坐标”：先跟随（镜像另一个用户，只跟一层避免环），再套微抖动。
-function resolveLoc(base) {
-  let eff = base;
-  if (base && base.mirror) {
-    const target = readLoc(fileForName(base.mirror));
-    eff = Object.assign({}, base, {
-      latitude: target.latitude,
-      longitude: target.longitude,
-      altitude: target.altitude,
-      horizontalAccuracy: target.horizontalAccuracy,
-      verticalAccuracy: target.verticalAccuracy,
-    });
+// —— 路线移动：沿折线按时间前进，让定位“会动” ——
+function haversineMeters(aLat, aLng, bLat, bLng) {
+  const R = 6371000;
+  const toR = (d) => (d * Math.PI) / 180;
+  const dLat = toR(bLat - aLat);
+  const dLng = toR(bLng - aLng);
+  const s = Math.pow(Math.sin(dLat / 2), 2) + Math.cos(toR(aLat)) * Math.cos(toR(bLat)) * Math.pow(Math.sin(dLng / 2), 2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+function positionAlongRoute(route, distMeters, loop) {
+  if (!Array.isArray(route) || route.length === 0) return null;
+  if (route.length === 1) return [Number(route[0][0]), Number(route[0][1])];
+  const segs = [];
+  let total = 0;
+  for (let i = 0; i < route.length - 1; i += 1) {
+    const d = haversineMeters(route[i][0], route[i][1], route[i + 1][0], route[i + 1][1]);
+    segs.push(d);
+    total += d;
   }
-  if (eff && eff.jitter) {
-    const j = applyJitter(Number(eff.latitude), Number(eff.longitude), eff.jitter);
-    eff = Object.assign({}, eff, { latitude: j.lat, longitude: j.lng });
+  if (total === 0) return [Number(route[0][0]), Number(route[0][1])];
+  let dist = distMeters;
+  if (loop) dist = ((dist % total) + total) % total;
+  else if (dist <= 0) return [Number(route[0][0]), Number(route[0][1])];
+  else if (dist >= total) { const last = route[route.length - 1]; return [Number(last[0]), Number(last[1])]; }
+  for (let i = 0; i < segs.length; i += 1) {
+    if (dist <= segs[i] || i === segs.length - 1) {
+      const f = segs[i] > 0 ? dist / segs[i] : 0;
+      const a = route[i], b = route[i + 1];
+      return [Number(a[0]) + (Number(b[0]) - Number(a[0])) * f, Number(a[1]) + (Number(b[1]) - Number(a[1])) * f];
+    }
+    dist -= segs[i];
+  }
+  const last = route[route.length - 1];
+  return [Number(last[0]), Number(last[1])];
+}
+function computeBasePoint(rec, now) {
+  if (rec && rec.mode === "route" && Array.isArray(rec.route) && rec.route.length >= 2) {
+    const speed = Number(rec.speed) > 0 ? Number(rec.speed) : 1.4;
+    const started = Number(rec.startedAt) || now;
+    const dist = Math.max(0, (now - started) / 1000) * speed;
+    const p = positionAlongRoute(rec.route, dist, !!rec.loop);
+    if (p) return { lat: p[0], lng: p[1] };
+  }
+  return { lat: Number(rec.latitude), lng: Number(rec.longitude) };
+}
+function clearMotion(rec) {
+  delete rec.mode; delete rec.route; delete rec.speed; delete rec.startedAt; delete rec.loop;
+}
+
+// 解析“真正回给 iPhone 的坐标”：先跟随（镜像对方实时点，只跟一层）或按路线移动，再套微抖动。
+function resolveLoc(base, now) {
+  const t = isFinite(now) ? now : Date.now();
+  const eff = Object.assign({}, base);
+  let src = base;
+  if (base && base.mirror) src = readLoc(fileForName(base.mirror));
+  const p = computeBasePoint(src, t);
+  eff.latitude = p.lat;
+  eff.longitude = p.lng;
+  if (base && base.jitter) {
+    const j = applyJitter(Number(eff.latitude), Number(eff.longitude), base.jitter);
+    eff.latitude = j.lat;
+    eff.longitude = j.lng;
   }
   return eff;
 }
@@ -164,8 +210,10 @@ function handler(req, res) {
   if (url.pathname === "/loc.json" && req.method === "GET") {
     if (!checkToken(token, res)) return;
     const base = readLoc(file);
-    // raw=1：返回锚点本身（选点页用），不做跟随/抖动；否则返回“解析后”坐标
-    const out = url.searchParams.get("raw") ? base : resolveLoc(base);
+    // raw=1：返回锚点本身（选点页用），不做跟随/移动/抖动；否则返回“解析后”坐标
+    const nowOv = Number(url.searchParams.get("now"));
+    const now = isFinite(nowOv) && nowOv > 0 ? nowOv : Date.now();
+    const out = url.searchParams.get("raw") ? base : resolveLoc(base, now);
     return send(res, 200, "application/json", JSON.stringify(out));
   }
 
@@ -181,7 +229,8 @@ function handler(req, res) {
     cur.enabled = true;
     cur.latitude = la;
     cur.longitude = lo0;
-    delete cur.mirror; // 手动选点 = 取消跟随朋友
+    delete cur.mirror; // 手动选点 = 取消跟随/移动
+    clearMotion(cur);
     function setIntQ(key, v) {
       if (v !== undefined && v !== null && v !== "" && isFinite(Number(v))) cur[key] = Math.round(Number(v));
     }
@@ -221,7 +270,8 @@ function handler(req, res) {
         cur.enabled = true; // 保存一个新位置 = 开启伪造
         cur.latitude = la;
         cur.longitude = lo;
-        delete cur.mirror; // 手动选点 = 取消跟随朋友
+        delete cur.mirror; // 手动选点 = 取消跟随/移动
+        clearMotion(cur);
         // 海拔/精度：脚本里都会被 Math.trunc 成整数，这里取整存
         function setInt(key, v) {
           if (v !== undefined && v !== null && v !== "" && isFinite(Number(v))) {
@@ -301,9 +351,67 @@ function handler(req, res) {
         const j = JSON.parse(body);
         const cur = readLoc(file);
         const name = cleanName(j.u);
-        if (j.clear || !name) delete cur.mirror;
-        else cur.mirror = name;
+        if (j.clear || !name) {
+          delete cur.mirror;
+        } else {
+          cur.mirror = name;
+          clearMotion(cur); // 跟随时暂停自己的路线移动
+        }
         cur.enabled = true;
+        writeLoc(file, cur);
+        return send(res, 200, "application/json", JSON.stringify(cur));
+      } catch (e) {
+        return send(res, 400, "application/json", '{"error":"bad json"}');
+      }
+    });
+    return;
+  }
+
+  // ---- 路线移动：沿折线按速度移动，让定位“会动”。{stop:true} 停在当前插值位置 ----
+  if (url.pathname === "/route" && req.method === "POST") {
+    if (!checkToken(token, res)) return;
+    let body = "";
+    req.on("data", function (c) {
+      body += c;
+      if (body.length > 1e5) req.destroy();
+    });
+    req.on("end", function () {
+      try {
+        const j = JSON.parse(body);
+        const cur = readLoc(file);
+        if (j.stop) {
+          const p = computeBasePoint(cur, Date.now());
+          cur.latitude = p.lat;
+          cur.longitude = p.lng;
+          clearMotion(cur);
+          writeLoc(file, cur);
+          return send(res, 200, "application/json", JSON.stringify(cur));
+        }
+        const route = Array.isArray(j.route) ? j.route : null;
+        if (!route || route.length < 2 || route.length > 200) {
+          return send(res, 400, "application/json", '{"error":"route needs 2..200 points"}');
+        }
+        const clean = [];
+        for (let i = 0; i < route.length; i += 1) {
+          const la = Number(route[i] && route[i][0]);
+          const lo = Number(route[i] && route[i][1]);
+          if (!isFinite(la) || !isFinite(lo) || la < -90 || la > 90 || lo < -180 || lo > 180) {
+            return send(res, 400, "application/json", '{"error":"bad route point"}');
+          }
+          clean.push([la, lo]);
+        }
+        let speed = Number(j.speed);
+        if (!isFinite(speed) || speed <= 0) speed = 1.4;
+        if (speed > 300) speed = 300;
+        delete cur.mirror;
+        cur.enabled = true;
+        cur.mode = "route";
+        cur.route = clean;
+        cur.speed = speed;
+        cur.loop = !!j.loop;
+        cur.startedAt = Date.now();
+        cur.latitude = clean[0][0];
+        cur.longitude = clean[0][1];
         writeLoc(file, cur);
         return send(res, 200, "application/json", JSON.stringify(cur));
       } catch (e) {
@@ -558,6 +666,18 @@ const PAGE = `<!doctype html>
   .mirrorstate{padding:0 16px 14px;font-size:12.5px;color:var(--fg2)}
   .mirrorstate a{color:var(--accent);text-decoration:none;font-weight:600}
   .mirrorstate:empty{display:none}
+  .route .rtop{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:14px 16px 10px}
+  .route .rtop b{font-size:15px;font-weight:680}
+  .route .rtop span{font-size:12.5px;color:var(--fg2)}
+  .ractions{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px}
+  .rrow2{display:flex;align-items:center;gap:12px;padding:12px 16px;flex-wrap:wrap}
+  .rloop{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--fg2);font-weight:600}
+  .rloop input{width:17px;height:17px;accent-color:var(--accent)}
+  #routego{width:calc(100% - 32px);margin:0 16px 14px;border:0;border-radius:14px;padding:14px;font-size:16px;font-weight:700;color:#fff;cursor:pointer;background:linear-gradient(180deg,#3aa0ff,#0a6bff);box-shadow:0 5px 16px rgba(10,107,255,.35);transition:transform .12s}
+  #routego:active{transform:translateY(1px) scale(.99)}
+  .rstate{padding:0 16px 14px;font-size:13px;color:var(--go);font-weight:600;line-height:1.6}
+  .rstate a{color:var(--warn);text-decoration:none;font-weight:700}
+  .rstate:empty{display:none}
   /* Leaflet 控件配色贴合主题 */
   .leaflet-control-layers,.leaflet-bar a{background:var(--card)!important;color:var(--fg)!important;border-color:var(--line)!important}
   .leaflet-bar a{border-bottom-color:var(--line)!important}
@@ -628,6 +748,24 @@ const PAGE = `<!doctype html>
     </div>
   </div>
   <div class="mirrorstate" id="mirrorstate"></div>
+</section>
+
+<section class="card route">
+  <div class="rtop"><b>🚶 路線移動</b><span id="routecount">尚未加入路線點</span></div>
+  <div class="ractions">
+    <button class="btn" id="routeadd">＋ 加入目前圖釘</button>
+    <button class="btn" id="routeclear">清除</button>
+  </div>
+  <div class="rrow2">
+    <div class="seg" id="routespeed">
+      <button type="button" data-s="1.4" class="on">🚶 走路</button>
+      <button type="button" data-s="5">🚲 騎車</button>
+      <button type="button" data-s="15">🚗 開車</button>
+    </div>
+    <label class="rloop"><input type="checkbox" id="routeloop"> 循環</label>
+  </div>
+  <button id="routego">▶ 開始移動</button>
+  <div class="rstate" id="routestate"></div>
 </section>
 
 <div class="pwahint">💡 想像 App 一樣用？在 Safari 點底部「分享」→「加入主畫面」，即可全螢幕獨立開啟。想「一鍵切換定位」，見倉庫「快捷指令一鍵改定位」教學，搭配 iOS 捷徑 + 背面輕點即可。</div>
@@ -871,6 +1009,63 @@ function clearMirror(){
     .catch(function(){toast("設定失敗");});
 }
 
+// 🚶 路线移动：把「目前图钉」一个个加进路线，设速度后开始沿线移动
+var routePts=[]; // WGS [lat,lng]
+var routeLine=null;
+var routeSpeed=1.4;
+function toDisp(ll){return datum==="gcj"?GCJ.wgs2gcj(ll[0],ll[1]):[ll[0],ll[1]];}
+function drawRoute(){
+  if(!map)return;
+  if(routeLine){map.removeLayer(routeLine);routeLine=null;}
+  if(routePts.length>=2){routeLine=L.polyline(routePts.map(toDisp),{color:"#0a6bff",weight:4,opacity:.85,dashArray:"6,7"}).addTo(map);}
+  var c=$("routecount");
+  if(c)c.textContent=routePts.length?("已加入 "+routePts.length+" 點"):"尚未加入路線點";
+}
+function routeAdd(){
+  if(!Number.isFinite(WGS.lat)||!Number.isFinite(WGS.lng)){toast("目前座標無效");return;}
+  routePts.push([WGS.lat,WGS.lng]);
+  drawRoute();
+  toast("已加入第 "+routePts.length+" 點");
+}
+function routeClearFn(){
+  routePts=[];
+  drawRoute();
+  toast("已清除路線");
+}
+function routeSpeedUI(s){
+  var seg=$("routespeed");if(!seg)return;
+  var bs=seg.getElementsByTagName("button");
+  for(var i=0;i<bs.length;i++){bs[i].classList.toggle("on",Number(bs[i].getAttribute("data-s"))===Number(s));}
+}
+function routeStateUI(rec){
+  var s=$("routestate");if(!s)return;
+  if(rec&&rec.mode==="route"&&rec.route){
+    var kmh=Math.round((Number(rec.speed)||1.4)*3.6);
+    s.innerHTML="🟢 移動中 · "+rec.route.length+" 點 · "+kmh+" km/h"+(rec.loop?" · 循環":"")+" · <a href='#' id='routestop'>停止</a>";
+    var st=$("routestop");if(st)st.addEventListener("click",function(e){e.preventDefault();routeStop();});
+  }else{
+    s.innerHTML="";
+  }
+}
+function routeGo(){
+  if(routePts.length<2){toast("至少加入 2 個路線點");return;}
+  fetch(apiUrl("/route"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({route:routePts,speed:routeSpeed,loop:$("routeloop").checked})})
+    .then(function(r){return r.ok?r.json():Promise.reject(r.status);})
+    .then(function(d){routeStateUI(d);toast("🚶 開始移動！關開定位生效");})
+    .catch(function(){toast("設定失敗");});
+}
+function routeStop(){
+  fetch(apiUrl("/route"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stop:true})})
+    .then(function(r){return r.ok?r.json():Promise.reject(r.status);})
+    .then(function(d){
+      routeStateUI(d);
+      WGS={lat:d.latitude,lng:d.longitude};saved=true;
+      var p=dispPos();marker.setLatLng(p);map.setView(p,map.getZoom());info();
+      toast("已停止，停在目前位置");
+    })
+    .catch(function(){toast("停止失敗");});
+}
+
 function info(){
   var pill=$("coordpill");
   if(pill){
@@ -1037,9 +1232,19 @@ function load(){
     updateEnabledUI();
     setLocateBusy(false);
 
-    map.on("baselayerchange",function(e){datum=e.layer.datum||"wgs"; var p=dispPos(); marker.setLatLng(p); map.setView(p,map.getZoom()); info();});
+    map.on("baselayerchange",function(e){datum=e.layer.datum||"wgs"; var p=dispPos(); marker.setLatLng(p); map.setView(p,map.getZoom()); info(); drawRoute();});
     map.on("click",function(e){movePin(e.latlng.lat,e.latlng.lng);});
     marker.on("dragend",function(){var p=marker.getLatLng(); movePin(p.lat,p.lng);});
+
+    // 若正在路线移动，恢复路线显示与状态
+    if(d.mode==="route"&&Array.isArray(d.route)&&d.route.length){
+      routePts=d.route.map(function(p){return [Number(p[0]),Number(p[1])];});
+      routeSpeed=Number(d.speed)||1.4;
+      if($("routeloop"))$("routeloop").checked=!!d.loop;
+      routeSpeedUI(routeSpeed);
+      drawRoute();
+    }
+    routeStateUI(d);
   }).catch(function(){$("info").textContent="載入失敗，請檢查 token 是否正確";});
 }
 
@@ -1053,6 +1258,10 @@ $("randombtn").addEventListener("click",teleport);
 $("mirrorbtn").addEventListener("click",applyMirror);
 $("mirroru").addEventListener("keydown",function(e){if(e.key==="Enter")applyMirror();});
 (function(){var seg=$("jitterseg");if(!seg)return;var bs=seg.getElementsByTagName("button");for(var i=0;i<bs.length;i++){(function(b){b.addEventListener("click",function(){setJitter(Number(b.getAttribute("data-m")));});})(bs[i]);}})();
+$("routeadd").addEventListener("click",routeAdd);
+$("routeclear").addEventListener("click",routeClearFn);
+$("routego").addEventListener("click",routeGo);
+(function(){var seg=$("routespeed");if(!seg)return;var bs=seg.getElementsByTagName("button");for(var i=0;i<bs.length;i++){(function(b){b.addEventListener("click",function(){routeSpeed=Number(b.getAttribute("data-s"));routeSpeedUI(routeSpeed);});})(bs[i]);}})();
 $("themebtn").addEventListener("click",toggleTheme);
 $("statuspill").addEventListener("click",toggleEnabled);
 updateThemeBtn();

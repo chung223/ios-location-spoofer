@@ -154,24 +154,89 @@ function applyJitter(lat, lng, meters) {
   return { lat: lat + dLat, lng: wrapLng(lng + dLng) };
 }
 
-// 计算“真正要回给 iPhone 的坐标”：先处理跟随（镜像另一个用户，只跟一层避免环），
-// 再套用微抖动。raw=1 时跳过，用于选点页显示“存下来的锚点”本身。
-async function resolveLoc(env, base) {
-  let eff = base;
-  if (base && base.mirror) {
-    const target = await readLoc(env, keyForName(base.mirror));
-    eff = {
-      ...base,
-      latitude: target.latitude,
-      longitude: target.longitude,
-      altitude: target.altitude,
-      horizontalAccuracy: target.horizontalAccuracy,
-      verticalAccuracy: target.verticalAccuracy,
-    };
+// —— 路线移动：沿一条折线按时间前进，让定位“会动” ——
+// 两点间大圆距离（米）。
+function haversineMeters(aLat, aLng, bLat, bLng) {
+  const R = 6371000;
+  const toR = (d) => (d * Math.PI) / 180;
+  const dLat = toR(bLat - aLat);
+  const dLng = toR(bLng - aLng);
+  const s =
+    Math.sin(dLat / 2) ** 2 + Math.cos(toR(aLat)) * Math.cos(toR(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+// 沿折线走 distMeters 后的位置。loop=true 循环；否则走到终点停在终点。
+function positionAlongRoute(route, distMeters, loop) {
+  if (!Array.isArray(route) || route.length === 0) return null;
+  if (route.length === 1) return [Number(route[0][0]), Number(route[0][1])];
+  const segs = [];
+  let total = 0;
+  for (let i = 0; i < route.length - 1; i += 1) {
+    const d = haversineMeters(route[i][0], route[i][1], route[i + 1][0], route[i + 1][1]);
+    segs.push(d);
+    total += d;
   }
-  if (eff && eff.jitter) {
-    const j = applyJitter(Number(eff.latitude), Number(eff.longitude), eff.jitter);
-    eff = { ...eff, latitude: j.lat, longitude: j.lng };
+  if (total === 0) return [Number(route[0][0]), Number(route[0][1])];
+  let dist = distMeters;
+  if (loop) {
+    dist = ((dist % total) + total) % total;
+  } else if (dist <= 0) {
+    return [Number(route[0][0]), Number(route[0][1])];
+  } else if (dist >= total) {
+    const last = route[route.length - 1];
+    return [Number(last[0]), Number(last[1])];
+  }
+  for (let i = 0; i < segs.length; i += 1) {
+    if (dist <= segs[i] || i === segs.length - 1) {
+      const f = segs[i] > 0 ? dist / segs[i] : 0;
+      const a = route[i];
+      const b = route[i + 1];
+      return [Number(a[0]) + (Number(b[0]) - Number(a[0])) * f, Number(a[1]) + (Number(b[1]) - Number(a[1])) * f];
+    }
+    dist -= segs[i];
+  }
+  const last = route[route.length - 1];
+  return [Number(last[0]), Number(last[1])];
+}
+
+// 某个存档在 now 时刻的“基准点”（处理路线移动；否则用固定 lat/lng）。不含跟随/抖动。
+function computeBasePoint(rec, now) {
+  if (rec && rec.mode === "route" && Array.isArray(rec.route) && rec.route.length >= 2) {
+    const speed = Number(rec.speed) > 0 ? Number(rec.speed) : 1.4; // 默认步行 ~1.4 m/s
+    const started = Number(rec.startedAt) || now;
+    const dist = Math.max(0, (now - started) / 1000) * speed;
+    const p = positionAlongRoute(rec.route, dist, !!rec.loop);
+    if (p) return { lat: p[0], lng: p[1] };
+  }
+  return { lat: Number(rec.latitude), lng: Number(rec.longitude) };
+}
+
+// 清掉“移动”相关字段（回到固定点时用）。
+function clearMotion(rec) {
+  delete rec.mode;
+  delete rec.route;
+  delete rec.speed;
+  delete rec.startedAt;
+  delete rec.loop;
+}
+
+// 计算“真正要回给 iPhone 的坐标”：先跟随（镜像另一个用户的实时点，只跟一层避免环）
+// 或按自己的路线移动，再套用微抖动。raw=1 时跳过，用于选点页显示“存下来的锚点”本身。
+async function resolveLoc(env, base, now) {
+  const t = Number.isFinite(now) ? now : Date.now();
+  const eff = { ...base };
+  let src = base;
+  if (base && base.mirror) {
+    src = await readLoc(env, keyForName(base.mirror)); // 跟随对方的实时点（含其路线移动）
+  }
+  const p = computeBasePoint(src, t);
+  eff.latitude = p.lat;
+  eff.longitude = p.lng;
+  if (base && base.jitter) {
+    const j = applyJitter(Number(eff.latitude), Number(eff.longitude), base.jitter);
+    eff.latitude = j.lat;
+    eff.longitude = j.lng;
   }
   return eff;
 }
@@ -201,9 +266,12 @@ export default {
         return unauthorized();
       }
       const base = await readLoc(env, locKey);
-      // raw=1：返回存下来的锚点本身（选点页用），不做跟随/抖动。
-      // 否则：脚本读到的是“解析后”的坐标（含跟随 + 微抖动）。
-      const loc = url.searchParams.get("raw") ? base : await resolveLoc(env, base);
+      // raw=1：返回存下来的锚点本身（选点页用），不做跟随/移动/抖动。
+      // 否则：脚本读到的是“解析后”的坐标（含跟随/路线移动 + 微抖动）。
+      // now=<毫秒> 可覆盖参考时间（测试/预览路线用）。
+      const nowOv = Number(url.searchParams.get("now"));
+      const now = Number.isFinite(nowOv) && nowOv > 0 ? nowOv : Date.now();
+      const loc = url.searchParams.get("raw") ? base : await resolveLoc(env, base, now);
       return jsonResponse(loc);
     }
 
@@ -223,7 +291,8 @@ export default {
       cur.enabled = true;
       cur.latitude = la;
       cur.longitude = lo;
-      delete cur.mirror; // 手动选点 = 取消跟随朋友
+      delete cur.mirror; // 手动选点 = 取消跟随/移动
+      clearMotion(cur);
       setInt(cur, "altitude", url.searchParams.get("alt"));
       setInt(cur, "horizontalAccuracy", url.searchParams.get("hacc"));
       setInt(cur, "verticalAccuracy", url.searchParams.get("vacc"));
@@ -265,7 +334,8 @@ export default {
         cur.enabled = true; // 保存一个新位置 = 开启伪造
         cur.latitude = la;
         cur.longitude = lo;
-        delete cur.mirror; // 手动选点 = 取消跟随朋友
+        delete cur.mirror; // 手动选点 = 取消跟随/移动
+        clearMotion(cur);
         setInt(cur, "altitude", j.altitude);
         setInt(cur, "horizontalAccuracy", j.horizontalAccuracy);
         setInt(cur, "verticalAccuracy", j.verticalAccuracy);
@@ -334,9 +404,65 @@ export default {
         const j = JSON.parse(bodyText);
         const cur = await readLoc(env, locKey);
         const name = cleanName(j.u);
-        if (j.clear || !name) delete cur.mirror;
-        else cur.mirror = name;
+        if (j.clear || !name) {
+          delete cur.mirror;
+        } else {
+          cur.mirror = name;
+          clearMotion(cur); // 跟随时暂停自己的路线移动
+        }
         cur.enabled = true;
+        await writeLoc(env, locKey, cur);
+        return jsonResponse(cur);
+      } catch {
+        return jsonResponse({ error: "bad json" }, 400);
+      }
+    }
+
+    // ---- 路线移动：沿折线按速度移动，让定位“会动”。{stop:true} 停在当前插值位置 ----
+    if (url.pathname === "/route" && request.method === "POST") {
+      if (!auth.ok) {
+        return unauthorized();
+      }
+      try {
+        const bodyText = await request.text();
+        if (bodyText.length > 100000) {
+          return jsonResponse({ error: "payload too large" }, 413);
+        }
+        const j = JSON.parse(bodyText);
+        const cur = await readLoc(env, locKey);
+        if (j.stop) {
+          const p = computeBasePoint(cur, Date.now());
+          cur.latitude = p.lat;
+          cur.longitude = p.lng;
+          clearMotion(cur);
+          await writeLoc(env, locKey, cur);
+          return jsonResponse(cur);
+        }
+        const route = Array.isArray(j.route) ? j.route : null;
+        if (!route || route.length < 2 || route.length > 200) {
+          return jsonResponse({ error: "route needs 2..200 points" }, 400);
+        }
+        const clean = [];
+        for (const pt of route) {
+          const la = Number(pt && pt[0]);
+          const lo = Number(pt && pt[1]);
+          if (!Number.isFinite(la) || !Number.isFinite(lo) || la < -90 || la > 90 || lo < -180 || lo > 180) {
+            return jsonResponse({ error: "bad route point" }, 400);
+          }
+          clean.push([la, lo]);
+        }
+        let speed = Number(j.speed);
+        if (!Number.isFinite(speed) || speed <= 0) speed = 1.4;
+        if (speed > 300) speed = 300;
+        delete cur.mirror;
+        cur.enabled = true;
+        cur.mode = "route";
+        cur.route = clean;
+        cur.speed = speed;
+        cur.loop = !!j.loop;
+        cur.startedAt = Date.now();
+        cur.latitude = clean[0][0];
+        cur.longitude = clean[0][1];
         await writeLoc(env, locKey, cur);
         return jsonResponse(cur);
       } catch {
