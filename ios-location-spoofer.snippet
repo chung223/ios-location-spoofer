@@ -5,5 +5,12 @@
 [rewrite_local]
 ^https?:\/\/(?:gs-loc(?:-cn)?\.apple\.com|gsp-ssl\.ls\.apple\.com|bluedot\.is\.autonavi\.com(?:\.gds\.alibabadns\.com)?)\/clls\/wloc(?:\?.*)?$ url script-response-body https://raw.githubusercontent.com/mekos2772/ios-location-spoofer/main/location-spoofer-qx.js
 
+[filter_local]
+# 離線 tile 快取端點：iOS 會向這裡拉「整片區域的真實 BSSID→GPS 對照表」快取在本機，
+# 之後不呼叫 gs-loc 就能離線算出真實位置——完全繞過上面那支改寫腳本。
+# 這是行動網路下最常見的失敗原因。擋掉它，逼 iOS 退回它會即時查詢、而我們有攔改的 gs-loc。
+host, gspe85-ssl.ls.apple.com, reject
+host, gspe85-cn-ssl.ls.apple.com, reject
+
 [mitm]
 hostname = gs-loc.apple.com, gs-loc-cn.apple.com, gsp-ssl.ls.apple.com, bluedot.is.autonavi.com, bluedot.is.autonavi.com.gds.alibabadns.com
