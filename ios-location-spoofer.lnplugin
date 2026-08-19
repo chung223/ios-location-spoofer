@@ -24,9 +24,10 @@ http-response ^https?:\/\/(?:gs-loc(?:-cn)?\.apple\.com|gsp-ssl\.ls\.apple\.com|
 cron "*/15 * * * *" script-path=https://raw.githubusercontent.com/mekos2772/ios-location-spoofer/main/location-spoofer.js, timeout=30, tag=iOS Location Spoofer Sync, argument=[{address},{configHost},{configToken},{configUrl},{debug}]
 
 [Rule]
-# 離線 tile 快取端點：iOS 會向這裡拉「整片區域的真實 BSSID→GPS 對照表」快取在本機，
-# 之後不呼叫 gs-loc 就能離線算出真實位置——完全繞過上面那支改寫腳本。
-# 這是行動網路下最常見的失敗原因。擋掉它，逼 iOS 退回它會即時查詢、而我們有攔改的 gs-loc。
+# 離線 tile 快取端點：iOS 會向它拉取整片區域的真實 BSSID→GPS 對照表並快取在本機，
+# 之後不請求 gs-loc 就能離線算出真實位置，等於繞過上面的改寫腳本（行動網路下最常見的失敗原因）。
+# 攔掉它，逼 iOS 退回我們有攔改的即時 gs-loc 查詢。
+# 用連線層 REJECT 而非 URL Rewrite：不需要對該網域解密，少一個會壞的環節。
 DOMAIN,gspe85-ssl.ls.apple.com,REJECT
 DOMAIN,gspe85-cn-ssl.ls.apple.com,REJECT
 
